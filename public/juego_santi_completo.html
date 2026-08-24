@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Juego 3D de Santi - Versión Completa</title>
+<style>
+* { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0f1d; font-family: system-ui, -apple-system, sans-serif; touch-action: none; }
+#canvas3d { width: 100%; height: 100%; display: block; }
+
+/* HUD Top */
+#hud-top {
+  position: fixed; top: 12px; left: 12px; right: 12px;
+  display: flex; justify-content: space-between; align-items: center;
+  z-index: 10; pointer-events: none;
+}
+.pill {
+  background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15); color: #fff;
+  padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: bold;
+  display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  pointer-events: auto;
+}
+#coins-box { color: #fde047; border-color: rgba(250, 204, 21, 0.4); }
+#time-box { border-color: rgba(56, 189, 248, 0.4); color: #e0f2fe; }
+
+/* Toast Notification */
+#toast {
+  position: fixed; top: 75px; left: 50%; transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.5);
+  padding: 6px 16px; border-radius: 30px; font-size: 12px; font-weight: bold;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5); z-index: 15; pointer-events: none;
+  opacity: 0; transition: opacity 0.25s, transform 0.25s;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(4px); }
+
+/* Center Crosshair */
+#cross {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.7);
+  border: 1.5px solid rgba(0, 0, 0, 0.5); z-index: 5; pointer-events: none;
+}
+
+/* Touch controls */
+#joy-zone {
+  position: fixed; left: 24px; bottom: 24px; width: 130px; height: 130px;
+  border-radius: 50%; background: rgba(255, 255, 255, 0.12); border: 2px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(4px); z-index: 20; touch-action: none;
+}
+#joy-stick {
+  position: absolute; left: 40px; top: 40px; width: 50px; height: 50px;
+  border-radius: 50%; background: rgba(255, 255, 255, 0.85); box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  pointer-events: none;
+}
+#look-zone {
+  position: fixed; right: 0; top: 0; width: 60%; height: 100%;
+  z-index: 5; touch-action: none;
+}
+
+/* Action Buttons Bottom Right */
+#action-col {
+  position: fixed; right: 24px; bottom: 24px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+  z-index: 20;
+}
+.btn-mini-row { display: flex; gap: 8px; }
+.btn-round {
+  width: 46px; height: 46px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(15, 23, 42, 0.85); color: #fff; font-size: 18px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3); backdrop-filter: blur(6px);
+}
+.btn-round:active { transform: scale(0.92); }
+#btn-jump {
+  width: 80px; height: 80px; border-radius: 28px; border: 2px solid rgba(255, 255, 255, 0.6);
+  background: linear-gradient(135deg, #2563eb, #4f46e5); color: #fff; font-size: 14px; font-weight: 900;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5); cursor: pointer;
+}
+#btn-jump:active { transform: scale(0.94); background: linear-gradient(135deg, #1d4ed8, #4338ca); }
+
+/* Victory Popup */
+#victory-modal {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px);
+  display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+}
+#victory-modal.active { display: flex; }
+.card {
+  background: linear-gradient(180deg, #1e293b, #0f172a); border: 1px solid #eab308;
+  border-radius: 28px; padding: 28px; max-width: 360px; width: 100%; text-align: center;
+  color: #fff; box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+}
+.card h1 { color: #fde047; font-size: 24px; margin-bottom: 8px; }
+.card p { color: #cbd5e1; font-size: 13px; margin-bottom: 20px; line-height: 1.4; }
+.card .btn-primary {
+  width: 100%; padding: 14px; background: #eab308; color: #0f172a; font-weight: bold;
+  border: none; border-radius: 18px; font-size: 15px; cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<div id="hud-top">
+  <div id="coins-box" class="pill">🪙 <span id="coin-counter">0 / 27</span> (<span id="score-val">0</span> pts)</div>
+  <div id="time-box" class="pill">☀️ <span id="clock-val">08:30</span> · <span id="period-val">Día</span></div>
+  <button id="btn-music" class="btn-round" title="Música" style="width: 38px; height: 38px; font-size: 14px;">🎵</button>
+</div>
+
+<div id="toast">✨ +10 Moneda de Oro!</div>
+<div id="cross"></div>
+
+<!-- Touch Zones -->
+<div id="joy-zone"><div id="joy-stick"></div></div>
+<div id="look-zone"></div>
+
+<!-- Action buttons -->
+<div id="action-col">
+  <div class="btn-mini-row">
+    <button id="btn-torch" class="btn-round" title="Linterna (F)">🔦</button>
+    <button id="btn-cam" class="btn-round" title="Cámara (V)">👁️</button>
+    <button id="btn-turbo" class="btn-round" title="Correr (Shift)">⚡</button>
+  </div>
+  <button id="btn-jump">
+    <span style="font-size: 20px;">⬆️</span>
+    <span>SALTAR</span>
+  </button>
+</div>
+
+<!-- Victory Dialog -->
+<div id="victory-modal">
+  <div class="card">
+    <div style="font-size: 48px; margin-bottom: 8px;">🏆</div>
+    <h1>¡FELICIDADES!</h1>
+    <p>Has recolectado todas las monedas y gemas del mapa 3D de Santi.</p>
+    <button class="btn-primary" onclick="location.reload()">JUGAR OTRA VEZ</button>
+  </div>
+</div>
+
+<canvas id="canvas3d"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+// ==========================================
+// 1. MOTOR DE AUDIO (MÚSICA Y SFX DINÁMICOS)
+// ==========================================
+class SoundEngine {
+  constructor() {
+    this.ctx = null;
+    this.isMusicPlaying = false;
+    this.noteIndex = 0;
+    this.isNight = false;
+  }
+  init() {
+    if (this.ctx) return;
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(e) {}
+  }
+  resume() {
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  }
+  toggleMusic() {
+    this.init(); this.resume();
+    this.isMusicPlaying = !this.isMusicPlaying;
+    if (this.isMusicPlaying) this.loopMusic();
+    return this.isMusicPlaying;
+  }
+  loopMusic() {
+    if (!this.isMusicPlaying) return;
+    const dayMelody = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 293.66, 349.23, 440.00, 587.33, 440.00, 349.23];
+    const nightMelody = [220.00, 261.63, 329.63, 440.00, 329.63, 261.63, 196.00, 246.94, 293.66, 392.00];
+
+    const melody = this.isNight ? nightMelody : dayMelody;
+    const freq = melody[this.noteIndex % melody.length];
+    this.noteIndex++;
+
+    if (this.ctx) {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = this.isNight ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(this.isNight ? 0.08 : 0.12, t + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.3);
+    }
+    setTimeout(() => this.loopMusic(), 240);
+  }
+  playCoin() {
+    this.init(); this.resume();
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [587.33, 783.99, 1046.50].forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.frequency.setValueAtTime(freq, t + i * 0.05);
+      gain.gain.setValueAtTime(0.18, t + i * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.05 + 0.25);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t + i * 0.05);
+      osc.stop(t + i * 0.05 + 0.26);
+    });
+  }
+  playJump() {
+    this.init(); this.resume();
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(450, t + 0.15);
+    gain.gain.setValueAtTime(0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.2);
+  }
+  playSpring() {
+    this.init(); this.resume();
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(750, t + 0.25);
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.36);
+  }
+}
+const audio = new SoundEngine();
+
+// ==========================================
+// 2. ESCENA 3D, LUCES Y AMBIENTE
+// ==========================================
+const canvas = document.getElementById("canvas3d");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 250);
+camera.rotation.order = "YXZ";
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+// Luces principales
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x445566, 1.2);
+scene.add(hemiLight);
+
+const sunLight = new THREE.DirectionalLight(0xfffaed, 2.0);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 1024; sunLight.shadow.mapSize.height = 1024;
+sunLight.shadow.camera.near = 0.5; sunLight.shadow.camera.far = 140;
+const d = 40;
+sunLight.shadow.camera.left = -d; sunLight.shadow.camera.right = d;
+sunLight.shadow.camera.top = d; sunLight.shadow.camera.bottom = -d;
+scene.add(sunLight);
+
+const moonLight = new THREE.DirectionalLight(0x88aaff, 0.6);
+moonLight.castShadow = true;
+scene.add(moonLight);
+
+// Malla del Sol y la Luna
+const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(3.5, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffea78 }));
+scene.add(sunMesh);
+const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(2.8, 16, 16), new THREE.MeshBasicMaterial({ color: 0xddedff }));
+scene.add(moonMesh);
+
+// Linterna del jugador
+const torch = new THREE.SpotLight(0xffffff, 0, 35, Math.PI / 5, 0.4, 1.2);
+const torchTarget = new THREE.Object3D();
+scene.add(torch); scene.add(torchTarget);
+torch.target = torchTarget;
+
+// Estrellas
+const starsGeom = new THREE.BufferGeometry();
+const starPos = new Float32Array(800 * 3);
+for (let i = 0; i < 800; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(Math.random() * 2 - 1);
+  const r = 160 + Math.random() * 20;
+  starPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+  starPos[i*3+1] = Math.abs(r * Math.cos(phi)) + 5;
+  starPos[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+}
+starsGeom.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+const starsMat = new THREE.PointsMaterial({ size: 1.5, color: 0xffffff, transparent: true, opacity: 0 });
+const starPoints = new THREE.Points(starsGeom, starsMat);
+scene.add(starPoints);
+
+// ==========================================
+// 3. TERRENO, PARQUE Y ESTRUCTURAS
+// ==========================================
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(160, 160, 32, 32),
+  new THREE.MeshStandardMaterial({ color: 0x3e8a3a, roughness: 0.85, flatShading: true })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const colliders = [];
+const platforms = [];
+const springPads = [];
+
+function addBox(x, y, z, w, h, d, color, isPlat = false) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.7 })
+  );
+  m.position.set(x, y, z);
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+  const box = new THREE.Box3().setFromObject(m);
+  colliders.push(box);
+  if (isPlat) platforms.push({ box, topY: y + h / 2 });
+  return m;
+}
+
+// Plaza central
+const plaza = new THREE.Mesh(
+  new THREE.CylinderGeometry(8, 8.5, 0.4, 16),
+  new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6 })
+);
+plaza.position.y = 0.2; plaza.receiveShadow = true; scene.add(plaza);
+
+// Pilares
+[[-5,-5],[5,-5],[-5,5],[5,5]].forEach(([x, z]) => {
+  addBox(x, 2.25, z, 1.2, 4.5, 1.2, 0x64748b, true);
+  const light = new THREE.PointLight(0xffaa33, 1.0, 12);
+  light.position.set(x, 4.8, z);
+  scene.add(light);
+});
+
+// Circuito de plataformas flotantes (Parkour)
+const steps = [
+  {x:0, y:1.8, z:-18, w:3, h:0.4, d:3, c:0x854d0e},
+  {x:0, y:3.5, z:-24, w:3, h:0.4, d:3, c:0x854d0e},
+  {x:-5, y:5.2, z:-29, w:3.2, h:0.4, d:3.2, c:0x854d0e},
+  {x:-12, y:7.0, z:-29, w:3.5, h:0.5, d:3.5, c:0x64748b},
+  {x:-18, y:8.8, z:-24, w:3.5, h:0.5, d:3.5, c:0x64748b},
+  {x:-22, y:10.5, z:-17, w:4, h:0.6, d:4, c:0xd97706},
+  {x:-15, y:10.5, z:-10, w:3, h:0.5, d:3, c:0x64748b},
+  {x:-8, y:11.5, z:-5, w:3.5, h:0.5, d:3.5, c:0x64748b},
+  {x:0, y:13.0, z:-5, w:5, h:0.8, d:5, c:0xd97706} // Cumbre
+];
+steps.forEach(s => addBox(s.x, s.y, s.z, s.w, s.h, s.d, s.c, true));
+
+// Trampolines de salto
+function addSpringPad(x, y, z) {
+  const g = new THREE.Group();
+  const pad = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.3, 1.3, 0.3, 16),
+    new THREE.MeshStandardMaterial({ color: 0xec4899, emissive: 0xbe185d, emissiveIntensity: 0.6 })
+  );
+  pad.position.y = 0.3; pad.castShadow = true; g.add(pad);
+  g.position.set(x, y, z); scene.add(g);
+  springPads.push({ pos: new THREE.Vector3(x, y, z), mesh: pad, topY: y + 0.4 });
+}
+addSpringPad(0, 0, -12);
+addSpringPad(24, 0, 18);
+addSpringPad(-28, 0, -22);
+
+// Árboles y Rocas
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21 });
+const leafMat = new THREE.MeshStandardMaterial({ color: 0x15803d, flatShading: true });
+for (let i = 0; i < 35; i++) {
+  const ang = Math.random() * Math.PI * 2, dst = 12 + Math.random() * 50;
+  const x = Math.cos(ang) * dst, z = Math.sin(ang) * dst;
+  const tree = new THREE.Group();
+  const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 2.5, 6), trunkMat);
+  tr.position.y = 1.25; tr.castShadow = true; tree.add(tr);
+  const cr = new THREE.Mesh(new THREE.ConeGeometry(1.8, 2.5, 7), leafMat);
+  cr.position.y = 2.8; cr.castShadow = true; tree.add(cr);
+  tree.position.set(x, 0, z); scene.add(tree);
+  colliders.push(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, 1.25, z), new THREE.Vector3(0.8, 2.5, 0.8)));
+}
+
+// ==========================================
+// 4. MONEDAS Y COLECCIONABLES (27 EN TOTAL)
+// ==========================================
+const coins = [];
+const coinLocs = [
+  {x:0, y:1.2, z:4, val:10, type:'gold'},
+  {x:-3.5, y:1.2, z:0, val:10, type:'gold'},
+  {x:3.5, y:1.2, z:0, val:10, type:'gold'},
+  {x:0, y:1.2, z:-4, val:10, type:'gold'},
+  {x:-5, y:5.6, z:-5, val:20, type:'gold'},
+  {x:5, y:5.6, z:-5, val:20, type:'gold'},
+  {x:-5, y:5.6, z:5, val:20, type:'gold'},
+  {x:5, y:5.6, z:5, val:20, type:'gold'},
+  {x:0, y:2.8, z:-18, val:15, type:'gold'},
+  {x:0, y:4.5, z:-24, val:15, type:'gold'},
+  {x:-5, y:6.2, z:-29, val:15, type:'gold'},
+  {x:-12, y:8.0, z:-29, val:30, type:'gem'},
+  {x:-18, y:9.8, z:-24, val:30, type:'gem'},
+  {x:-22, y:11.5, z:-17, val:30, type:'gem'},
+  {x:-8, y:12.5, z:-5, val:35, type:'gem'},
+  {x:0, y:14.5, z:-5, val:100, type:'star'}, // Cumbre
+  {x:22, y:3.0, z:0, val:15, type:'gold'},
+  {x:28, y:6.0, z:6, val:30, type:'gem'},
+  {x:0, y:8.5, z:-12, val:40, type:'gem'}, // Trampolín 1
+  {x:24, y:9.0, z:18, val:40, type:'gem'},  // Trampolín 2
+  {x:-28, y:9.5, z:-22, val:40, type:'gem'},// Trampolín 3
+  {x:-25, y:1.2, z:15, val:10, type:'gold'},
+  {x:18, y:1.2, z:-20, val:10, type:'gold'},
+  {x:-15, y:1.2, z:35, val:10, type:'gold'},
+  {x:30, y:1.2, z:-35, val:10, type:'gold'},
+  {x:-35, y:1.2, z:-5, val:10, type:'gold'},
+  {x:10, y:1.2, z:28, val:10, type:'gold'},
+];
+
+const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xd97706, emissiveIntensity: 0.4, metalness: 0.9, roughness: 0.1 });
+const gemMat = new THREE.MeshStandardMaterial({ color: 0x06b6d4, emissive: 0x0891b2, emissiveIntensity: 0.5, metalness: 0.3, roughness: 0.1 });
+const starMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xfbbf24, emissiveIntensity: 0.7, metalness: 0.7, roughness: 0.1 });
+
+coinLocs.forEach((c, i) => {
+  let mesh;
+  if (c.type === 'gem') mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.6), gemMat);
+  else if (c.type === 'star') mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.8), starMat);
+  else {
+    mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.12, 16), goldMat);
+    mesh.rotation.x = Math.PI / 2;
+  }
+  mesh.position.set(c.x, c.y, c.z);
+  scene.add(mesh);
+  coins.push({ mesh, baseY: c.y, val: c.val, collected: false, type: c.type });
+});
+
+// ==========================================
+// 5. JUGADOR, FÍSICAS Y CONTROLES
+// ==========================================
+const player = { pos: new THREE.Vector3(0, 2, 8), vel: new THREE.Vector3(), onGround: false, sprinting: false };
+let yaw = 0, pitch = 0;
+let viewMode = 'first'; // 'first' o 'third'
+let score = 0, collectedCoins = 0;
+
+// Avatar 3ra persona
+const avatar = new THREE.Group();
+const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.45), new THREE.MeshStandardMaterial({ color: 0x2563eb }));
+bodyMesh.position.y = 0.9; bodyMesh.castShadow = true; avatar.add(bodyMesh);
+const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), new THREE.MeshStandardMaterial({ color: 0xf59e0b }));
+headMesh.position.y = 1.65; headMesh.castShadow = true; avatar.add(headMesh);
+scene.add(avatar);
+avatar.visible = false;
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.innerText = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2000);
+}
+
+function jump() {
+  if (player.onGround) {
+    player.vel.y = 9.5; player.onGround = false;
+    audio.playJump();
+  }
+}
+
+// Botones UI
+document.getElementById("btn-jump").addEventListener("touchstart", e => { e.preventDefault(); jump(); }, { passive: false });
+document.getElementById("btn-jump").addEventListener("mousedown", jump);
+
+let isTorchOn = false;
+document.getElementById("btn-torch").addEventListener("click", () => {
+  isTorchOn = !isTorchOn;
+  torch.intensity = isTorchOn ? 2.5 : 0;
+  showToast(isTorchOn ? "🔦 Linterna Encendida" : "Linterna Apagada");
+});
+
+document.getElementById("btn-cam").addEventListener("click", () => {
+  viewMode = viewMode === 'first' ? 'third' : 'first';
+  showToast(viewMode === 'first' ? "👁️ 1ra Persona" : "👁️ 3ra Persona");
+});
+
+document.getElementById("btn-turbo").addEventListener("click", () => {
+  player.sprinting = !player.sprinting;
+  showToast(player.sprinting ? "⚡ Turbo Activado" : "Turbo Desactivado");
+});
+
+document.getElementById("btn-music").addEventListener("click", () => {
+  const on = audio.toggleMusic();
+  document.getElementById("btn-music").innerText = on ? "🔊" : "🎵";
+  showToast(on ? "🎵 Música Activada" : "Música Pausada");
+});
+
+// Joystick táctil
+const joyZone = document.getElementById("joy-zone");
+const joyStick = document.getElementById("joy-stick");
+let joyId = null, joyX = 0, joyY = 0;
+
+function updateJoy(cx, cy) {
+  const rect = joyZone.getBoundingClientRect();
+  const ox = rect.left + rect.width / 2, oy = rect.top + rect.height / 2;
+  let dx = cx - ox, dy = cy - oy, max = 40, len = Math.hypot(dx, dy);
+  if (len > max) { dx = (dx / len) * max; dy = (dy / len) * max; }
+  joyX = dx / max; joyY = dy / max;
+  joyStick.style.left = (40 + dx) + "px"; joyStick.style.top = (40 + dy) + "px";
+}
+function resetJoy() {
+  joyId = null; joyX = 0; joyY = 0;
+  joyStick.style.left = "40px"; joyStick.style.top = "40px";
+}
+joyZone.addEventListener("touchstart", e => {
+  e.preventDefault(); joyId = e.changedTouches[0].identifier;
+  updateJoy(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+}, { passive: false });
+joyZone.addEventListener("touchmove", e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) if (t.identifier === joyId) updateJoy(t.clientX, t.clientY);
+}, { passive: false });
+joyZone.addEventListener("touchend", e => { for (const t of e.changedTouches) if (t.identifier === joyId) resetJoy(); });
+
+// Zona táctil de cámara
+const lookZone = document.getElementById("look-zone");
+let lookId = null, lastX = 0, lastY = 0;
+lookZone.addEventListener("touchstart", e => {
+  e.preventDefault(); const t = e.changedTouches[0];
+  lookId = t.identifier; lastX = t.clientX; lastY = t.clientY;
+}, { passive: false });
+lookZone.addEventListener("touchmove", e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.identifier === lookId) {
+      yaw -= (t.clientX - lastX) * 0.006;
+      pitch -= (t.clientY - lastY) * 0.006;
+      pitch = Math.max(-1.45, Math.min(1.45, pitch));
+      lastX = t.clientX; lastY = t.clientY;
+    }
+  }
+}, { passive: false });
+lookZone.addEventListener("touchend", e => { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; });
+
+// Teclado y ratón (PC)
+const keys = {};
+addEventListener("keydown", e => {
+  keys[e.code] = true;
+  if (e.code === "Space") { e.preventDefault(); jump(); }
+  if (e.code === "KeyF") document.getElementById("btn-torch").click();
+  if (e.code === "KeyV") document.getElementById("btn-cam").click();
+  if (e.code === "KeyM") document.getElementById("btn-music").click();
+  if (e.code === "ShiftLeft") player.sprinting = true;
+});
+addEventListener("keyup", e => {
+  keys[e.code] = false;
+  if (e.code === "ShiftLeft") player.sprinting = false;
+});
+
+canvas.addEventListener("click", () => canvas.requestPointerLock());
+addEventListener("mousemove", e => {
+  if (document.pointerLockElement === canvas) {
+    yaw -= e.movementX * 0.0022; pitch -= e.movementY * 0.0022;
+    pitch = Math.max(-1.45, Math.min(1.45, pitch));
+  }
+});
+
+// ==========================================
+// 6. CICLO DÍA / NOCHE Y BUCLE PRINCIPAL
+// ==========================================
+let timeOfDay = 8.5;
+const clock = new THREE.Clock();
+
+function updateTime(dt) {
+  timeOfDay = (timeOfDay + dt * 0.15) % 24; // 1 día completo = ~2.5 minutos
+  const t = timeOfDay;
+  const sunAng = ((t - 6) / 24) * Math.PI * 2;
+  const sx = Math.cos(sunAng) * 120, sy = Math.sin(sunAng) * 120;
+
+  sunLight.position.set(sx, sy, 20); sunMesh.position.set(sx, sy, 20);
+  moonLight.position.set(-sx, -sy, -20); moonMesh.position.set(-sx, -sy, -20);
+
+  let period = "Día", sky = new THREE.Color(0x7ec8ed), starsOp = 0;
+  if (t >= 5 && t < 7.5) {
+    period = "Amanecer"; sky.setRGB(0.95, 0.65, 0.5);
+    sunLight.intensity = 1.0; moonLight.intensity = 0.2; audio.isNight = false;
+  } else if (t >= 7.5 && t < 17) {
+    period = "Día"; sky.setHex(0x7ec8ed);
+    sunLight.intensity = 2.0; moonLight.intensity = 0.0; audio.isNight = false;
+  } else if (t >= 17 && t < 19.5) {
+    period = "Atardecer"; sky.setRGB(0.85, 0.45, 0.35);
+    sunLight.intensity = 0.8; moonLight.intensity = 0.4; starsOp = 0.5; audio.isNight = true;
+  } else {
+    period = "Noche"; sky.setHex(0x0a0f1d);
+    sunLight.intensity = 0.0; moonLight.intensity = 0.7; starsOp = 1.0; audio.isNight = true;
+  }
+
+  scene.background = sky;
+  scene.fog.color = sky;
+  starsMat.opacity = starsOp;
+
+  const hh = Math.floor(t).toString().padStart(2, '0');
+  const mm = Math.floor((t % 1) * 60).toString().padStart(2, '0');
+  document.getElementById("clock-val").innerText = `${hh}:${mm}`;
+  document.getElementById("period-val").innerText = period;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  updateTime(dt);
+
+  // Entrada de movimiento
+  let mx = joyX, my = joyY;
+  if (keys.KeyW || keys.ArrowUp) my -= 1;
+  if (keys.KeyS || keys.ArrowDown) my += 1;
+  if (keys.KeyA || keys.ArrowLeft) mx -= 1;
+  if (keys.KeyD || keys.ArrowRight) mx += 1;
+
+  const len = Math.hypot(mx, my);
+  if (len > 1) { mx /= len; my /= len; }
+
+  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  const speed = player.sprinting ? 12.5 : 7.8;
+
+  player.vel.x = (forward.x * -my + right.x * mx) * speed;
+  player.vel.z = (forward.z * -my + right.z * mx) * speed;
+  player.vel.y -= 24 * dt;
+
+  const prev = player.pos.clone();
+  player.pos.x += player.vel.x * dt;
+  player.pos.z += player.vel.z * dt;
+  player.pos.y += player.vel.y * dt;
+
+  // Colisión con plataformas
+  let onPlat = false;
+  for (const p of platforms) {
+    if (player.pos.x >= p.box.min.x - 0.5 && player.pos.x <= p.box.max.x + 0.5 &&
+        player.pos.z >= p.box.min.z - 0.5 && player.pos.z <= p.box.max.z + 0.5) {
+      if (prev.y >= p.topY - 0.2 && player.pos.y <= p.topY + 0.1 && player.vel.y <= 0) {
+        player.pos.y = p.topY; player.vel.y = 0; player.onGround = true; onPlat = true;
+        break;
+      }
+    }
+  }
+  if (!onPlat) {
+    if (player.pos.y <= 0) {
+      player.pos.y = 0; player.vel.y = 0; player.onGround = true;
+    } else player.onGround = false;
+  }
+
+  // Trampolines
+  for (const s of springPads) {
+    if (Math.hypot(player.pos.x - s.pos.x, player.pos.z - s.pos.z) < 1.5 && Math.abs(player.pos.y - s.topY) < 0.8) {
+      player.vel.y = 19.5; player.onGround = false;
+      audio.playSpring();
+      showToast("🚀 ¡Súper Salto de Trampolín!");
+      break;
+    }
+  }
+
+  // Monedas
+  const time = clock.getElapsedTime();
+  coins.forEach(c => {
+    if (c.collected) return;
+    c.mesh.rotation.y += 2 * dt;
+    c.mesh.position.y = c.baseY + Math.sin(time * 3) * 0.15;
+    if (player.pos.distanceTo(c.mesh.position) < 1.6) {
+      c.collected = true; c.mesh.visible = false;
+      collectedCoins++; score += c.val;
+      audio.playCoin();
+      document.getElementById("coin-counter").innerText = `${collectedCoins} / ${coins.length}`;
+      document.getElementById("score-val").innerText = score;
+      showToast(`+${c.val} ${c.type === 'star' ? '¡Gran Estrella!' : c.type === 'gem' ? '¡Gema Cian!' : '¡Moneda!'}`);
+      if (collectedCoins === coins.length) {
+        document.getElementById("victory-modal").classList.add("active");
+      }
+    }
+  });
+
+  // Posicionar Avatar y Cámara
+  const eye = new THREE.Vector3(player.pos.x, player.pos.y + 1.7, player.pos.z);
+  avatar.position.copy(player.pos);
+  avatar.rotation.y = yaw;
+
+  if (viewMode === 'first') {
+    avatar.visible = false;
+    camera.position.copy(eye);
+    camera.rotation.y = yaw; camera.rotation.x = pitch;
+  } else {
+    avatar.visible = true;
+    const bx = Math.sin(yaw) * Math.cos(pitch) * 4.2;
+    const bz = Math.cos(yaw) * Math.cos(pitch) * 4.2;
+    const by = Math.sin(-pitch) * 4.2 + 1.2;
+    camera.position.set(player.pos.x + bx, Math.max(player.pos.y + by, 0.5), player.pos.z + bz);
+    camera.lookAt(eye);
+  }
+
+  // Linterna
+  if (isTorchOn) {
+    torch.position.copy(eye);
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    torchTarget.position.copy(eye).add(dir.multiplyScalar(10));
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

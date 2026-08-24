@@ -1,0 +1,6 @@
+{
+  "name": "Juego 3D de Santi",
+  "description": "SUPER BOY: Juego de plataformas y aventura 3D con pantalla de inicio, botón PLAY, Three.js, tienda interactiva, espadas, bebidas energéticas, trampolines y ciclo día/noche.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
