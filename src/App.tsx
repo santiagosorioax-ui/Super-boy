@@ -6,13 +6,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameWorld } from './game/GameWorld';
 import { soundEngine } from './audio/soundEngine';
-import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem } from './types';
+import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension } from './types';
 import { HUD } from './components/HUD';
 import { SettingsModal } from './components/SettingsModal';
 import { VictoryModal } from './components/VictoryModal';
 import { HelpModal } from './components/HelpModal';
 import { ShopModal } from './components/ShopModal';
+import { MultiplierShopModal } from './components/MultiplierShopModal';
 import { StartScreen } from './components/StartScreen';
+import { MultiplierTier } from './types';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -44,10 +46,14 @@ export default function App() {
   // Shop & Inventory State
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isNearShop, setIsNearShop] = useState(false);
+  const [isMultiplierShopOpen, setIsMultiplierShopOpen] = useState(false);
+  const [isNearMultiplierShop, setIsNearMultiplierShop] = useState(false);
   const [inventory, setInventory] = useState<PlayerInventory>({
     coins: 0,
     ownedSwordIds: [],
     equippedSwordId: null,
+    playerMultiplier: 1,
+    unlockedMultipliers: [1],
     activeBuffs: {
       speedTimeRemaining: 0,
       jumpTimeRemaining: 0,
@@ -58,6 +64,9 @@ export default function App() {
     },
   });
 
+  const inventoryRef = useRef(inventory);
+  inventoryRef.current = inventory;
+
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVictoryOpen, setIsVictoryOpen] = useState(false);
@@ -67,14 +76,17 @@ export default function App() {
   const [settings, setSettings] = useState<GameSettings>({
     musicVolume: 0.4,
     sfxVolume: 0.7,
-    mouseSensitivity: 1.0,
-    fov: 85,
+    mouseSensitivity: 1.5,
+    fov: 100,
     cycleSpeed: 'normal',
     showCompass: true,
     viewMode: 'first_person',
     graphicsQuality: isMobile ? 'medium' : 'high',
     showFps: false,
   });
+
+  const [currentDimension, setCurrentDimension] = useState<WorldDimension>('main');
+  const [zombiesDefeated, setZombiesDefeated] = useState(0);
 
   // Touch joystick tracking
   const [joyStickPos, setJoyStickPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -92,7 +104,7 @@ export default function App() {
     setLastToast(msg);
     setTimeout(() => {
       setLastToast((prev) => (prev === msg ? null : prev));
-    }, 2400);
+    }, 2800);
   }, []);
 
   // Initialize Game World
@@ -101,7 +113,8 @@ export default function App() {
 
     const world = new GameWorld(containerRef.current, {
       onCoinCollected: (coin: CoinData, remaining: number, total: number, currentCombo: number) => {
-        const pointsEarned = coin.value * Math.max(1, currentCombo);
+        const mult = inventoryRef.current.playerMultiplier || 1;
+        const pointsEarned = coin.value * mult * Math.max(1, currentCombo);
         setScore((prev) => prev + pointsEarned);
         setCollectedCoins(total - remaining);
         setTotalCoins(total);
@@ -112,8 +125,9 @@ export default function App() {
           coins: prev.coins + pointsEarned,
         }));
 
-        const typeName = coin.type === 'star' ? '¡Gran Estrella!' : coin.type === 'gem' ? '¡Gema Cian!' : '¡Moneda de Oro!';
-        showToast(`+${pointsEarned} ${typeName}`);
+        const typeName = coin.type === 'star' ? '¡Gran Estrella!' : coin.type === 'gem' ? '¡Diamante!' : '¡Moneda!';
+        const multLabel = mult > 1 ? ` (${mult}x)` : '';
+        showToast(`+${pointsEarned}${multLabel} ${typeName}`);
       },
       onTimeUpdate: (newTimeState: TimeState) => {
         setTimeState(newTimeState);
@@ -133,6 +147,12 @@ export default function App() {
       onOpenShop: () => {
         setIsShopOpen(true);
       },
+      onNearMultiplierShop: (near: boolean) => {
+        setIsNearMultiplierShop(near);
+      },
+      onOpenMultiplierShop: () => {
+        setIsMultiplierShopOpen(true);
+      },
       onBuffsUpdate: (buffs) => {
         setInventory((prev) => ({
           ...prev,
@@ -143,6 +163,23 @@ export default function App() {
             magnetTimeRemaining: buffs.magnetTimeRemaining,
           },
         }));
+      },
+      onWorldChange: (newWorld) => {
+        setCurrentDimension(newWorld);
+        if (newWorld === 'candy') {
+          showToast('🍭 ¡Bienvenido al Mundo de Caramelo!');
+        } else {
+          showToast('🌿 Regresaste al Valle Principal');
+        }
+      },
+      onZombieDefeated: (points, remaining) => {
+        setScore((prev) => prev + points);
+        setZombiesDefeated((prev) => prev + 1);
+        setInventory((prev) => ({ ...prev, coins: prev.coins + points }));
+        showToast(`⚔️ ¡Zombi derrotado! +${points} monedas`);
+      },
+      onPlayerHurt: (message) => {
+        showToast(`💥 ${message}`);
       },
       onVictory: () => {
         setIsVictoryOpen(true);
@@ -156,6 +193,7 @@ export default function App() {
     if (settingsRef.current.fov) {
       world.setFov(settingsRef.current.fov);
     }
+    world.setSensitivity(settingsRef.current.mouseSensitivity);
     world.start();
 
     // Radar interval (update compass every 200ms)
@@ -342,6 +380,36 @@ export default function App() {
     showToast(swordId ? '🗡️ Espada equipada' : '🗡️ Espada desequipada');
   };
 
+  // Handle Buy Multiplier Tier
+  const handleBuyMultiplier = (tier: MultiplierTier) => {
+    if (inventory.coins < tier.price) {
+      soundEngine.playShopBuyFail();
+      showToast('❌ ¡No tienes suficientes monedas para este multiplicador!');
+      return;
+    }
+
+    soundEngine.playShopBuySuccess();
+    setInventory((prev) => ({
+      ...prev,
+      coins: prev.coins - tier.price,
+      unlockedMultipliers: prev.unlockedMultipliers.includes(tier.multiplier)
+        ? prev.unlockedMultipliers
+        : [...prev.unlockedMultipliers, tier.multiplier],
+      playerMultiplier: tier.multiplier,
+    }));
+    showToast(`✨ ¡Multiplicador ${tier.multiplier}x comprado y activado!`);
+  };
+
+  // Handle Equip/Select Multiplier Tier
+  const handleEquipMultiplier = (mult: number) => {
+    setInventory((prev) => ({
+      ...prev,
+      playerMultiplier: mult,
+    }));
+    soundEngine.playEquipSound();
+    showToast(`⚡ Multiplicador ${mult}x activado`);
+  };
+
   // Handle Settings Update
   const handleUpdateSettings = (newSettings: Partial<GameSettings>) => {
     const updated = { ...settings, ...newSettings };
@@ -525,7 +593,10 @@ export default function App() {
           isSprinting={isSprinting}
           radar={settings.showCompass ? radar : null}
           isNearShop={isNearShop}
+          isNearMultiplierShop={isNearMultiplierShop}
           inventory={inventory}
+          currentDimension={currentDimension}
+          zombiesDefeated={zombiesDefeated}
           onToggleMusic={handleToggleMusic}
           onToggleFlashlight={handleToggleFlashlight}
           onToggleViewMode={handleToggleViewMode}
@@ -533,6 +604,7 @@ export default function App() {
           onToggleSprint={handleToggleSprint}
           onSwingSword={handleSwingSword}
           onOpenShop={() => setIsShopOpen(true)}
+          onOpenMultiplierShop={() => setIsMultiplierShopOpen(true)}
           onReturnToSpawn={handleReturnToSpawn}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenHelp={() => setIsHelpOpen(true)}
@@ -554,6 +626,16 @@ export default function App() {
         inventory={inventory}
         onBuyItem={handleBuyItem}
         onEquipSword={handleEquipSword}
+      />
+
+      {/* Multiplier Shop Modal */}
+      <MultiplierShopModal
+        isOpen={isMultiplierShopOpen}
+        onClose={() => setIsMultiplierShopOpen(false)}
+        inventory={inventory}
+        currentDimension={currentDimension}
+        onBuyMultiplier={handleBuyMultiplier}
+        onEquipMultiplier={handleEquipMultiplier}
       />
 
       {/* Settings Modal */}

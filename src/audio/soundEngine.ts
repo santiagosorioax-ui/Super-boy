@@ -549,6 +549,194 @@ class SoundEngine {
       osc.stop(t + n.time + n.dur + 0.05);
     });
   }
+
+  public playZombieGroanSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(110, t);
+    osc.frequency.linearRampToValueAtTime(80, t + 0.25);
+    osc.frequency.exponentialRampToValueAtTime(55, t + 0.6);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(380, t);
+    filter.frequency.linearRampToValueAtTime(220, t + 0.5);
+
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.13, t + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 0.68);
+  }
+
+  public playZombieHitSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    // Impact noise & squash pitch
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(240, t);
+    osc.frequency.exponentialRampToValueAtTime(60, t + 0.18);
+
+    gain.gain.setValueAtTime(0.22, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 0.24);
+  }
+
+  public playPortalTeleportSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    // Sci-fi / Magical dimensional portal whoosh
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, t);
+    osc.frequency.exponentialRampToValueAtTime(880, t + 0.35);
+    osc.frequency.linearRampToValueAtTime(1400, t + 0.6);
+
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(400, t);
+    filter.frequency.linearRampToValueAtTime(2400, t + 0.5);
+    filter.Q.setValueAtTime(4, t);
+
+    gain.gain.setValueAtTime(0.02, t);
+    gain.gain.linearRampToValueAtTime(0.24, t + 0.25);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 0.8);
+  }
+
+  public playCandyPickupSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.exponentialRampToValueAtTime(1760, t + 0.12);
+
+    gain.gain.setValueAtTime(0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 0.18);
+  }
+
+  public playPlayerHurtSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(280, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.25);
+
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 0.3);
+  }
+
+  public playPlayerDeathSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    // 3-note descending ominous demise chime
+    const notes = [320, 240, 160, 90];
+    notes.forEach((freq, i) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t + i * 0.14);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.7, t + i * 0.14 + 0.2);
+
+      gain.gain.setValueAtTime(0.32, t + i * 0.14);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.14 + 0.28);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(t + i * 0.14);
+      osc.stop(t + i * 0.14 + 0.3);
+    });
+  }
+
+  public playNightAwakenSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(130, t);
+    osc.frequency.exponentialRampToValueAtTime(260, t + 0.4);
+    osc.frequency.linearRampToValueAtTime(90, t + 0.9);
+
+    gain.gain.setValueAtTime(0.01, t);
+    gain.gain.linearRampToValueAtTime(0.2, t + 0.35);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.95);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 1.0);
+  }
 }
 
 export const soundEngine = new SoundEngine();
+

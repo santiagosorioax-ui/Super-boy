@@ -35,7 +35,10 @@ interface HUDProps {
   isSprinting: boolean;
   radar: { angleDeg: number; distance: number } | null;
   isNearShop?: boolean;
+  isNearMultiplierShop?: boolean;
   inventory?: PlayerInventory;
+  currentDimension?: 'main' | 'candy';
+  zombiesDefeated?: number;
   onToggleMusic: () => void;
   onToggleFlashlight: () => void;
   onToggleViewMode: () => void;
@@ -44,6 +47,7 @@ interface HUDProps {
   onOpenSettings: () => void;
   onOpenHelp: () => void;
   onOpenShop?: () => void;
+  onOpenMultiplierShop?: () => void;
   onReturnToSpawn?: () => void;
   onSwingSword?: () => void;
   // Touch Joy Callbacks
@@ -72,7 +76,10 @@ export const HUD: React.FC<HUDProps> = ({
   isSprinting,
   radar,
   isNearShop = false,
+  isNearMultiplierShop = false,
   inventory,
+  currentDimension = 'main',
+  zombiesDefeated = 0,
   onToggleMusic,
   onToggleFlashlight,
   onToggleViewMode,
@@ -81,6 +88,7 @@ export const HUD: React.FC<HUDProps> = ({
   onOpenSettings,
   onOpenHelp,
   onOpenShop,
+  onOpenMultiplierShop,
   onReturnToSpawn,
   onSwingSword,
   onJoyTouchStart,
@@ -194,6 +202,32 @@ export const HUD: React.FC<HUDProps> = ({
             </button>
           )}
 
+          {/* Dedicated Multiplier Shop Button */}
+          {onOpenMultiplierShop && (
+            <button
+              id="hud-btn-multiplier-shop"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onOpenMultiplierShop();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenMultiplierShop();
+              }}
+              aria-label="Tienda de Multiplicadores"
+              title="Tienda de Multiplicadores de Monedas (1x a 6x)"
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl border backdrop-blur-md shadow-lg transition active:scale-95 text-xs font-bold touch-none select-none ${
+                isNearMultiplierShop
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-300 text-white animate-bounce shadow-purple-500/40 ring-2 ring-purple-400'
+                  : 'bg-slate-900/85 border-purple-500/40 text-purple-300 hover:bg-slate-800'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <span className="font-extrabold text-amber-300">{inventory?.playerMultiplier || 1}x</span>
+              <span className="hidden xs:inline">Multiplicador</span>
+            </button>
+          )}
+
           {/* Dedicated Return to Spawn / Home Button */}
           {onReturnToSpawn && (
             <button
@@ -216,8 +250,32 @@ export const HUD: React.FC<HUDProps> = ({
           )}
         </div>
 
-        {/* Center: Day / Night Clock Widget & Radar */}
+        {/* Center: Dimension Badge, Day/Night Clock Widget & Radar */}
         <div className="flex items-center gap-2">
+          {/* Dimension indicator badge */}
+          <div
+            id="hud-dimension-badge"
+            className={`hidden sm:flex items-center gap-1.5 backdrop-blur-md border rounded-2xl px-3 py-1.5 shadow-lg text-xs font-bold ${
+              currentDimension === 'candy'
+                ? 'bg-pink-950/80 border-pink-400/50 text-pink-200'
+                : 'bg-emerald-950/80 border-emerald-400/50 text-emerald-200'
+            }`}
+          >
+            <span>{currentDimension === 'candy' ? '🍭' : '🌿'}</span>
+            <span>{currentDimension === 'candy' ? 'Mundo de Caramelo' : 'Valle Principal'}</span>
+          </div>
+
+          {/* Zombie Kills Badge if any */}
+          {zombiesDefeated > 0 && (
+            <div
+              id="hud-zombie-counter"
+              className="flex items-center gap-1 bg-red-950/80 backdrop-blur-md border border-red-500/40 text-red-300 rounded-2xl px-2.5 py-1.5 shadow-lg text-xs font-bold"
+            >
+              <Sword className="w-3.5 h-3.5 text-red-400" />
+              <span>{zombiesDefeated}</span>
+            </div>
+          )}
+
           {/* Day/Night Clock */}
           <div 
             id="hud-time-widget"
@@ -363,6 +421,25 @@ export const HUD: React.FC<HUDProps> = ({
           >
             <span className="text-xl">🏪</span>
             <span>Entrar a la Tienda de Santi (E)</span>
+          </button>
+        </div>
+      )}
+
+      {isNearMultiplierShop && onOpenMultiplierShop && !isNearShop && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-auto z-20 transition-all animate-bounce">
+          <button
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onOpenMultiplierShop();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenMultiplierShop();
+            }}
+            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-500 to-pink-500 text-white font-black text-sm shadow-2xl border-2 border-white hover:scale-105 active:scale-95 transition touch-none select-none"
+          >
+            <span className="text-xl">✨</span>
+            <span>Altar de Multiplicadores (1x a 6x) (Presiona E)</span>
           </button>
         </div>
       )}

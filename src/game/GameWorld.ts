@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { CoinData, GameSettings, TimeState } from '../types';
+import { CoinData, GameSettings, TimeState, WorldDimension } from '../types';
 import { soundEngine } from '../audio/soundEngine';
+import { ZombieSystem } from './ZombieSystem';
+import { CandyWorldBuilder, CandyWorldElements } from './CandyWorldBuilder';
 
 export interface WorldCallbacks {
   onCoinCollected: (coin: CoinData, remaining: number, total: number, combo: number) => void;
@@ -10,8 +12,15 @@ export interface WorldCallbacks {
   onVictory: () => void;
   onFpsUpdate?: (fps: number) => void;
   onNearShop?: (isNear: boolean) => void;
+  onNearMultiplierShop?: (isNear: boolean) => void;
   onOpenShop?: () => void;
+  onOpenMultiplierShop?: () => void;
   onBuffsUpdate?: (buffs: { speedTimeRemaining: number; jumpTimeRemaining: number; magnetTimeRemaining: number }) => void;
+  onWorldChange?: (world: WorldDimension) => void;
+  onZombieDefeated?: (points: number, remaining: number) => void;
+  onPlayerHurt?: (message: string) => void;
+  onPlayerHealthUpdate?: (health: number, maxHealth: number) => void;
+  onPlayerDied?: (coinsLost: number) => void;
 }
 
 export class GameWorld {
@@ -82,12 +91,19 @@ export class GameWorld {
     magnetRadius: 20,
   };
 
-  // Shop Building & Proximity
-  private shopPos = new THREE.Vector3(6.5, 0.2, 2.0);
+  // Shop Buildings & Proximity (Main Valley & Candy World)
+  private mainShopPos = new THREE.Vector3(6.5, 0.2, 2.0);
+  private candyShopPos = new THREE.Vector3(608.0, 0.4, 588.0);
   private isNearShop = false;
-  private shopkeeperMesh: THREE.Group | null = null;
-  private shopRuneRing: THREE.Mesh | null = null;
-  private shopDisplayWeapons: THREE.Group | null = null;
+
+  private mainMultiplierShopPos = new THREE.Vector3(-6.5, 0.2, 2.0);
+  private candyMultiplierShopPos = new THREE.Vector3(592.0, 0.4, 588.0);
+  private isNearMultiplierShop = false;
+
+  private shopkeepers: THREE.Group[] = [];
+  private shopRuneRings: THREE.Mesh[] = [];
+  private shopDisplayWeapons: THREE.Group[] = [];
+  private multiplierHolograms: THREE.Group[] = [];
 
   // Speed Aura Particles
   private speedAuraParticles: THREE.Points | null = null;
@@ -153,11 +169,17 @@ export class GameWorld {
   // Particle Effects (collecting, springs, sword slash)
   private particleSystems: { points: THREE.Points; velocities: THREE.Vector3[]; age: number; maxAge: number }[] = [];
 
+  // Zombies & Candy World
+  private zombieSystem: ZombieSystem | null = null;
+  private candyWorldElements: CandyWorldElements | null = null;
+  private currentWorld: WorldDimension = 'main';
+  private portalCooldownTimer = 0;
+
   private isRunning = false;
   private animFrameId: number | null = null;
-  private mouseSensitivity = 1.0;
-  private baseFov = 85;
-  private currentFov = 85;
+  private mouseSensitivity = 1.5;
+  private baseFov = 100;
+  private currentFov = 100;
 
   constructor(container: HTMLElement, callbacks: WorldCallbacks) {
     this.container = container;
@@ -168,12 +190,12 @@ export class GameWorld {
       (typeof window !== 'undefined' && window.innerWidth < 768);
     this.graphicsQuality = this.isMobileDevice ? 'medium' : 'high';
 
-    // 1. Scene & Camera (Expansive 85° Field of View & 550m draw distance)
+    // 1. Scene & Camera (Expansive 100° Field of View & 550m draw distance)
     this.scene = new THREE.Scene();
     const width = container.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 800) || 800;
     const height = container.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 600) || 600;
     const aspect = width / height;
-    this.camera = new THREE.PerspectiveCamera(85, aspect, 0.1, 550);
+    this.camera = new THREE.PerspectiveCamera(100, aspect, 0.1, 550);
     this.camera.rotation.order = 'YXZ';
 
     this.renderer = new THREE.WebGLRenderer({ 
@@ -847,6 +869,9 @@ export class GameWorld {
   }
 
   public getTerrainHeight(x: number, z: number): number {
+    if (this.currentWorld === 'candy' || Math.hypot(x - 600, z - 600) < 140) {
+      return 0.4;
+    }
     const distFromCenter = Math.hypot(x, z);
     // Plaza courtyard check
     if (distFromCenter <= 8.5) {
@@ -910,11 +935,15 @@ export class GameWorld {
     // 2. Central Sanctuary / Stone Plaza
     this.buildPlaza();
 
-    // 2.1 The Shop & Merchant near Spawn (Plaza East)
-    this.buildShopBuilding(6.5, 0, 2.0);
+    // 2.1 The Shops & Multiplier Stalls (Main Valley)
+    this.buildShopBuilding(6.5, 0, 2.0, 'valley');
+    this.buildMultiplierShopBuilding(-6.5, 0, 2.0, 'valley');
 
     // 3. Parkour Platforms & Tower Ruins
     this.buildParkourCourse();
+
+    // 3.1 Ancient Temple of the Sun (Mundo 1)
+    this.buildTemple(0, -68);
 
     // 4. Spring Jump Pads (Trampolines firmly grounded and in strategic scenic spots)
     this.createSpringPad(0, -12);            // Central North
@@ -928,6 +957,42 @@ export class GameWorld {
 
     // 5. Trees, Rocks, Foliage, and Lanterns (Non-overlapping)
     this.buildFoliage();
+
+    // 6. Build Candy World and Portals
+    this.candyWorldElements = CandyWorldBuilder.build(
+      this.scene,
+      100,
+      (x, z) => this.getTerrainHeight(x, z)
+    );
+    this.colliders.push(...this.candyWorldElements.colliders);
+    this.platforms.push(...this.candyWorldElements.platforms);
+    this.springPads.push(...this.candyWorldElements.springPads);
+    this.coins.push(...this.candyWorldElements.coins);
+
+    // 6.1 The Shops & Multiplier Stalls (Candy World)
+    this.buildShopBuilding(608.0, 0.4, 588.0, 'candy');
+    this.buildMultiplierShopBuilding(592.0, 0.4, 588.0, 'candy');
+
+    // 7. Initialize Zombies
+    this.zombieSystem = new ZombieSystem(
+      this.scene,
+      (x, z) => this.getTerrainHeight(x, z),
+      {
+        onDefeated: (points, remaining) => {
+          this.callbacks.onZombieDefeated?.(points, remaining);
+        },
+        onPlayerHurt: (msg) => {
+          this.triggerHaptic([30, 40, 30]);
+          this.callbacks.onPlayerHurt?.(msg);
+        },
+        spawnCoin: (pos, type) => {
+          this.spawnBonusCoin(pos, type);
+        },
+        spawnParticles: (pos, color, count) => {
+          this.spawnSlashParticles(pos, color, count);
+        },
+      }
+    );
   }
 
   private buildHillsAndMounds() {
@@ -1023,16 +1088,18 @@ export class GameWorld {
     });
   }
 
-  private buildShopBuilding(x: number, y: number, z: number) {
-    this.shopPos.set(x, y, z);
+  private buildShopBuilding(x: number, y: number, z: number, theme: 'valley' | 'candy' = 'valley') {
     const shopGroup = new THREE.Group();
     shopGroup.position.set(x, y, z);
-    shopGroup.rotation.y = -Math.PI / 3; // Face plaza
+    shopGroup.rotation.y = theme === 'valley' ? -Math.PI / 3 : Math.PI / 4;
 
-    // 1. Wooden Foundation Platform
+    // 1. Foundation Platform
     const baseGeom = new THREE.BoxGeometry(4.2, 0.35, 3.0);
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
-    const base = new THREE.Mesh(baseGeom, woodMat);
+    const baseMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xd97706 : 0x78350f,
+      roughness: 0.8,
+    });
+    const base = new THREE.Mesh(baseGeom, baseMat);
     base.position.y = 0.18;
     base.castShadow = true;
     base.receiveShadow = true;
@@ -1040,16 +1107,22 @@ export class GameWorld {
 
     // 2. Counter Desk
     const counterGeom = new THREE.BoxGeometry(3.4, 0.95, 0.85);
-    const counterMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.6 });
+    const counterMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0x92400e : 0x92400e,
+      roughness: 0.6,
+    });
     const counter = new THREE.Mesh(counterGeom, counterMat);
     counter.position.set(0, 0.7, 0.4);
     counter.castShadow = true;
     counter.receiveShadow = true;
     shopGroup.add(counter);
 
-    // 3. Four Wooden Corner Posts
+    // 3. Four Corner Posts
     const postGeom = new THREE.CylinderGeometry(0.08, 0.08, 2.9, 8);
-    const postMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.9 });
+    const postMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xffffff : 0x451a03,
+      roughness: 0.5,
+    });
     const postPositions = [
       { px: -1.8, pz: -1.2 },
       { px: 1.8, pz: -1.2 },
@@ -1063,18 +1136,24 @@ export class GameWorld {
       shopGroup.add(post);
     });
 
-    // 4. Striped Canopy Awning (Sloped Red & Cream Roof)
+    // 4. Striped Canopy Awning
     const roofGroup = new THREE.Group();
     roofGroup.position.set(0, 2.9, 0);
 
     const stripeCount = 9;
     const stripeWidth = 4.4 / stripeCount;
-    const redMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.6 });
-    const creamMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.6 });
+    const color1Mat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xf43f5e : 0xdc2626,
+      roughness: 0.5,
+    });
+    const color2Mat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xffffff : 0xfef08a,
+      roughness: 0.5,
+    });
 
     for (let i = 0; i < stripeCount; i++) {
       const geom = new THREE.BoxGeometry(stripeWidth, 0.08, 3.4);
-      const mesh = new THREE.Mesh(geom, i % 2 === 0 ? redMat : creamMat);
+      const mesh = new THREE.Mesh(geom, i % 2 === 0 ? color1Mat : color2Mat);
       mesh.position.set(-2.2 + (i + 0.5) * stripeWidth, 0, 0);
       mesh.rotation.x = 0.15; // slope
       mesh.castShadow = true;
@@ -1082,29 +1161,34 @@ export class GameWorld {
     }
     shopGroup.add(roofGroup);
 
-    // 5. Hanging Warm Lantern
-    const shopLanternLight = new THREE.PointLight(0xfbbf24, 1.8, 8);
+    // 5. Hanging Warm / Sweet Lantern
+    const lightColor = theme === 'candy' ? 0xf472b6 : 0xfbbf24;
+    const shopLanternLight = new THREE.PointLight(lightColor, 1.8, 8);
     shopLanternLight.position.set(0, 2.4, 0.5);
     shopGroup.add(shopLanternLight);
     this.lanterns.push(shopLanternLight);
 
     const lanternGeom = new THREE.DodecahedronGeometry(0.18);
     const lanternMat = new THREE.MeshStandardMaterial({
-      color: 0xfef08a,
-      emissive: 0xf59e0b,
+      color: theme === 'candy' ? 0xfda4af : 0xfef08a,
+      emissive: lightColor,
       emissiveIntensity: 1.5,
     });
     const lanternMesh = new THREE.Mesh(lanternGeom, lanternMat);
     lanternMesh.position.copy(shopLanternLight.position);
     shopGroup.add(lanternMesh);
 
-    // 6. Shopkeeper NPC ("Tendero Santi")
+    // 6. Shopkeeper NPC ("Tendero Santi" or "Tendero Caramelo")
     const merchant = new THREE.Group();
     merchant.position.set(0, 0.35, -0.4);
+    merchant.userData.baseY = 0.35;
 
     // Robe
     const robeGeom = new THREE.CylinderGeometry(0.3, 0.5, 1.0, 12);
-    const robeMat = new THREE.MeshStandardMaterial({ color: 0x4f46e5, roughness: 0.5 });
+    const robeMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xec4899 : 0x4f46e5,
+      roughness: 0.5,
+    });
     const robe = new THREE.Mesh(robeGeom, robeMat);
     robe.position.y = 0.5;
     robe.castShadow = true;
@@ -1112,7 +1196,10 @@ export class GameWorld {
 
     // Apron
     const apronGeom = new THREE.BoxGeometry(0.38, 0.6, 0.1);
-    const apronMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.6 });
+    const apronMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xfacc15 : 0xf59e0b,
+      roughness: 0.6,
+    });
     const apron = new THREE.Mesh(apronGeom, apronMat);
     apron.position.set(0, 0.55, 0.3);
     merchant.add(apron);
@@ -1125,9 +1212,12 @@ export class GameWorld {
     head.castShadow = true;
     merchant.add(head);
 
-    // Wizard/Merchant Hat
+    // Wizard / Chef Hat
     const hatBrimGeom = new THREE.CylinderGeometry(0.48, 0.48, 0.05, 16);
-    const hatMat = new THREE.MeshStandardMaterial({ color: 0x312e81, roughness: 0.4 });
+    const hatMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xbe185d : 0x312e81,
+      roughness: 0.4,
+    });
     const hatBrim = new THREE.Mesh(hatBrimGeom, hatMat);
     hatBrim.position.y = 1.45;
     merchant.add(hatBrim);
@@ -1139,7 +1229,7 @@ export class GameWorld {
     merchant.add(hatCone);
 
     shopGroup.add(merchant);
-    this.shopkeeperMesh = merchant;
+    this.shopkeepers.push(merchant);
 
     // 7. Counter Showcase Items (Glowing Sword + Potion Bottles)
     const showcase = new THREE.Group();
@@ -1148,8 +1238,8 @@ export class GameWorld {
     // Display Katana
     const katanaBladeGeom = new THREE.BoxGeometry(0.04, 0.75, 0.08);
     const katanaBladeMat = new THREE.MeshStandardMaterial({
-      color: 0x06b6d4,
-      emissive: 0x06b6d4,
+      color: theme === 'candy' ? 0xf43f5e : 0x06b6d4,
+      emissive: theme === 'candy' ? 0xf43f5e : 0x06b6d4,
       emissiveIntensity: 1.6,
     });
     const katanaBlade = new THREE.Mesh(katanaBladeGeom, katanaBladeMat);
@@ -1158,7 +1248,7 @@ export class GameWorld {
     showcase.add(katanaBlade);
 
     // Display Potion Bottles
-    const potionColors = [0x3b82f6, 0xa855f7, 0xeab308];
+    const potionColors = theme === 'candy' ? [0xf43f5e, 0x10b981, 0xfacc15] : [0x3b82f6, 0xa855f7, 0xeab308];
     potionColors.forEach((col, idx) => {
       const flaskGeom = new THREE.CylinderGeometry(0.06, 0.12, 0.24, 8);
       const flaskMat = new THREE.MeshStandardMaterial({
@@ -1173,45 +1263,45 @@ export class GameWorld {
     });
 
     shopGroup.add(showcase);
-    this.shopDisplayWeapons = showcase;
+    this.shopDisplayWeapons.push(showcase);
 
     // 8. 3D Floating Shop Board Sign
     const signGroup = new THREE.Group();
     signGroup.position.set(0, 3.4, 1.3);
 
-    const signBoardGeom = new THREE.BoxGeometry(2.2, 0.6, 0.1);
+    const signBoardGeom = new THREE.BoxGeometry(2.4, 0.6, 0.1);
     const signBoardMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
     const signBoard = new THREE.Mesh(signBoardGeom, signBoardMat);
     signGroup.add(signBoard);
 
     // Golden frame
-    const signFrameGeom = new THREE.BoxGeometry(2.3, 0.7, 0.06);
+    const signFrameGeom = new THREE.BoxGeometry(2.5, 0.7, 0.06);
     const signFrameMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0xf59e0b,
+      color: theme === 'candy' ? 0xec4899 : 0xf59e0b,
+      emissive: theme === 'candy' ? 0xec4899 : 0xf59e0b,
       emissiveIntensity: 0.6,
     });
     const signFrame = new THREE.Mesh(signFrameGeom, signFrameMat);
     signGroup.add(signFrame);
 
-    // Coin icon on sign
-    const coinSymbolGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.12, 16);
-    const coinSymbolMat = new THREE.MeshStandardMaterial({
-      color: 0xffd700,
-      emissive: 0xf59e0b,
+    // Icon on sign
+    const iconGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.12, 16);
+    const iconMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xf43f5e : 0xffd700,
+      emissive: theme === 'candy' ? 0xf43f5e : 0xf59e0b,
       emissiveIntensity: 1.2,
     });
-    const coinSymbol = new THREE.Mesh(coinSymbolGeom, coinSymbolMat);
-    coinSymbol.rotation.x = Math.PI / 2;
-    coinSymbol.position.z = 0.05;
-    signGroup.add(coinSymbol);
+    const iconMesh = new THREE.Mesh(iconGeom, iconMat);
+    iconMesh.rotation.x = Math.PI / 2;
+    iconMesh.position.z = 0.05;
+    signGroup.add(iconMesh);
 
     shopGroup.add(signGroup);
 
     // 9. Pulsing Floor Interaction Rune Ring
     const ringGeom = new THREE.RingGeometry(1.4, 1.9, 24);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xf59e0b,
+      color: theme === 'candy' ? 0xec4899 : 0xf59e0b,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.7,
@@ -1220,9 +1310,209 @@ export class GameWorld {
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(0, 0.04, 1.8);
     shopGroup.add(ring);
-    this.shopRuneRing = ring;
+    this.shopRuneRings.push(ring);
 
     this.scene.add(shopGroup);
+  }
+
+  private buildMultiplierShopBuilding(x: number, y: number, z: number, theme: 'valley' | 'candy' = 'valley') {
+    const multGroup = new THREE.Group();
+    multGroup.position.set(x, y, z);
+    multGroup.rotation.y = theme === 'valley' ? Math.PI / 3 : -Math.PI / 4;
+
+    // 1. Crystal Pavilion Base
+    const baseGeom = new THREE.CylinderGeometry(2.4, 2.7, 0.35, 8);
+    const baseMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0x831843 : 0x1e1b4b,
+      roughness: 0.4,
+      metalness: 0.3,
+    });
+    const base = new THREE.Mesh(baseGeom, baseMat);
+    base.position.y = 0.18;
+    base.castShadow = true;
+    base.receiveShadow = true;
+    multGroup.add(base);
+
+    // 2. Crystal Altar / Counter
+    const altarGeom = new THREE.BoxGeometry(2.8, 0.95, 0.85);
+    const altarMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0x9d174d : 0x312e81,
+      roughness: 0.3,
+    });
+    const altar = new THREE.Mesh(altarGeom, altarMat);
+    altar.position.set(0, 0.7, 0.3);
+    altar.castShadow = true;
+    altar.receiveShadow = true;
+    multGroup.add(altar);
+
+    // 3. Shimmering Crystal Pillars
+    const pillarGeom = new THREE.CylinderGeometry(0.1, 0.14, 2.9, 6);
+    const pillarMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xf472b6 : 0x818cf8,
+      emissive: theme === 'candy' ? 0xbe185d : 0x4338ca,
+      emissiveIntensity: 0.6,
+      roughness: 0.2,
+    });
+    const pillarPositions = [
+      { px: -1.6, pz: -1.0 },
+      { px: 1.6, pz: -1.0 },
+      { px: -1.6, pz: 1.0 },
+      { px: 1.6, pz: 1.0 },
+    ];
+    pillarPositions.forEach(({ px, pz }) => {
+      const p = new THREE.Mesh(pillarGeom, pillarMat);
+      p.position.set(px, 1.6, pz);
+      p.castShadow = true;
+      multGroup.add(p);
+    });
+
+    // 4. Canopy Roof (Violet & Gold / Cyan)
+    const roofGeom = new THREE.ConeGeometry(2.4, 1.2, 8);
+    const roofMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xec4899 : 0x6366f1,
+      emissive: theme === 'candy' ? 0x9d174d : 0x3730a3,
+      emissiveIntensity: 0.4,
+      roughness: 0.3,
+    });
+    const roof = new THREE.Mesh(roofGeom, roofMat);
+    roof.position.set(0, 3.4, 0);
+    roof.castShadow = true;
+    multGroup.add(roof);
+
+    // 5. Giant Spinning Multiplier Hologram Emblem ("1x - 6x Multiplier Icon")
+    const hologram = new THREE.Group();
+    hologram.position.set(0, 2.1, 0.3);
+    hologram.userData.baseY = 2.1;
+
+    // Glowing central star / diamond
+    const gemGeom = new THREE.OctahedronGeometry(0.42, 0);
+    const gemMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xfacc15 : 0x38bdf8,
+      emissive: theme === 'candy' ? 0xf59e0b : 0x0284c7,
+      emissiveIntensity: 1.8,
+      roughness: 0.1,
+    });
+    const gem = new THREE.Mesh(gemGeom, gemMat);
+    hologram.add(gem);
+
+    // Orbiting multiplier rings
+    const ring1Geom = new THREE.TorusGeometry(0.7, 0.05, 8, 24);
+    const ring1Mat = new THREE.MeshBasicMaterial({
+      color: theme === 'candy' ? 0xf43f5e : 0xa855f7,
+      wireframe: false,
+    });
+    const ring1 = new THREE.Mesh(ring1Geom, ring1Mat);
+    ring1.rotation.x = Math.PI / 3;
+    hologram.add(ring1);
+
+    const ring2Geom = new THREE.TorusGeometry(0.9, 0.04, 8, 24);
+    const ring2Mat = new THREE.MeshBasicMaterial({
+      color: theme === 'candy' ? 0x10b981 : 0x38bdf8,
+      wireframe: false,
+    });
+    const ring2 = new THREE.Mesh(ring2Geom, ring2Mat);
+    ring2.rotation.y = Math.PI / 4;
+    hologram.add(ring2);
+
+    multGroup.add(hologram);
+    this.multiplierHolograms.push(hologram);
+
+    // Light for the hologram
+    const holoLight = new THREE.PointLight(theme === 'candy' ? 0xf472b6 : 0xa855f7, 2.2, 9);
+    holoLight.position.set(0, 2.2, 0.3);
+    multGroup.add(holoLight);
+    this.lanterns.push(holoLight);
+
+    // 6. Multiplier Alchemist Sage NPC
+    const sage = new THREE.Group();
+    sage.position.set(0, 0.35, -0.4);
+    sage.userData.baseY = 0.35;
+
+    // Robe
+    const robeGeom = new THREE.CylinderGeometry(0.3, 0.5, 1.0, 12);
+    const robeMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0x701a75 : 0x312e81,
+      roughness: 0.5,
+    });
+    const robe = new THREE.Mesh(robeGeom, robeMat);
+    robe.position.y = 0.5;
+    robe.castShadow = true;
+    sage.add(robe);
+
+    // Glowing Rune Belt
+    const beltGeom = new THREE.CylinderGeometry(0.38, 0.38, 0.12, 12);
+    const beltMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 1.0,
+    });
+    const belt = new THREE.Mesh(beltGeom, beltMat);
+    belt.position.y = 0.55;
+    sage.add(belt);
+
+    // Head
+    const headGeom = new THREE.SphereGeometry(0.28, 12, 12);
+    const headMat = new THREE.MeshStandardMaterial({ color: 0xfcd34d, roughness: 0.4 });
+    const head = new THREE.Mesh(headGeom, headMat);
+    head.position.y = 1.25;
+    head.castShadow = true;
+    sage.add(head);
+
+    // Wizard Hat with glowing star
+    const hatBrimGeom = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 16);
+    const hatMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0x86198f : 0x1e1b4b,
+      roughness: 0.3,
+    });
+    const hatBrim = new THREE.Mesh(hatBrimGeom, hatMat);
+    hatBrim.position.y = 1.45;
+    sage.add(hatBrim);
+
+    const hatConeGeom = new THREE.ConeGeometry(0.34, 0.7, 12);
+    const hatCone = new THREE.Mesh(hatConeGeom, hatMat);
+    hatCone.position.set(0, 1.8, -0.05);
+    hatCone.rotation.x = -0.15;
+    sage.add(hatCone);
+
+    multGroup.add(sage);
+    this.shopkeepers.push(sage);
+
+    // 7. Overhead Floating Sign
+    const signGroup = new THREE.Group();
+    signGroup.position.set(0, 3.8, 1.2);
+
+    const signBoardGeom = new THREE.BoxGeometry(2.6, 0.6, 0.1);
+    const signBoardMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+    const signBoard = new THREE.Mesh(signBoardGeom, signBoardMat);
+    signGroup.add(signBoard);
+
+    // Neon Frame
+    const signFrameGeom = new THREE.BoxGeometry(2.7, 0.7, 0.06);
+    const signFrameMat = new THREE.MeshStandardMaterial({
+      color: theme === 'candy' ? 0xec4899 : 0x818cf8,
+      emissive: theme === 'candy' ? 0xdb2777 : 0x6366f1,
+      emissiveIntensity: 0.9,
+    });
+    const signFrame = new THREE.Mesh(signFrameGeom, signFrameMat);
+    signGroup.add(signFrame);
+
+    multGroup.add(signGroup);
+
+    // 8. Pulsing Floor Interaction Rune Ring
+    const ringGeom = new THREE.RingGeometry(1.4, 1.9, 24);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: theme === 'candy' ? 0xec4899 : 0x818cf8,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.75,
+    });
+    const ring = new THREE.Mesh(ringGeom, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(0, 0.04, 1.7);
+    multGroup.add(ring);
+    this.shopRuneRings.push(ring);
+
+    this.scene.add(multGroup);
   }
 
   private createSwordMesh(swordId: string): THREE.Group {
@@ -1471,6 +1761,312 @@ export class GameWorld {
       this.colliders.push(box);
       this.platforms.push({ box, topY: terrainY + pillarHeight - 0.2 });
     }
+  }
+
+  private buildTemple(cx: number, cz: number) {
+    const templeGroup = new THREE.Group();
+    const groundH = this.getTerrainHeight(cx, cz);
+    templeGroup.position.set(cx, 0, cz);
+
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      roughness: 0.6,
+      flatShading: true,
+    });
+    const marbleMat = new THREE.MeshStandardMaterial({
+      color: 0xe2e8f0,
+      roughness: 0.35,
+      metalness: 0.1,
+    });
+    const darkStoneMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.5,
+    });
+    const goldMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.5,
+      roughness: 0.25,
+      metalness: 0.7,
+    });
+    const roofMat = new THREE.MeshStandardMaterial({
+      color: 0xb45309,
+      roughness: 0.5,
+    });
+
+    // 1. Multi-Tiered Stone Base Podium
+    const baseWidth = 22;
+    const baseDepth = 24;
+    const baseHeight = 1.4;
+    const baseY = groundH + baseHeight / 2;
+
+    const baseGeom = new THREE.BoxGeometry(baseWidth, baseHeight, baseDepth);
+    const baseMesh = new THREE.Mesh(baseGeom, stoneMat);
+    baseMesh.position.set(0, baseY, 0);
+    baseMesh.castShadow = true;
+    baseMesh.receiveShadow = true;
+    templeGroup.add(baseMesh);
+
+    // Main base platform collider
+    const floorTopY = groundH + baseHeight;
+    const baseBox = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(cx, baseY, cz),
+      new THREE.Vector3(baseWidth, baseHeight, baseDepth)
+    );
+    this.colliders.push(baseBox);
+    this.platforms.push({ box: baseBox, topY: floorTopY });
+
+    // Upper Marble Terrace
+    const terraceW = 18;
+    const terraceD = 20;
+    const terraceH = 0.6;
+    const terraceY = floorTopY + terraceH / 2;
+    const terraceGeom = new THREE.BoxGeometry(terraceW, terraceH, terraceD);
+    const terraceMesh = new THREE.Mesh(terraceGeom, marbleMat);
+    terraceMesh.position.set(0, terraceY, 0);
+    terraceMesh.castShadow = true;
+    terraceMesh.receiveShadow = true;
+    templeGroup.add(terraceMesh);
+
+    const terraceTopY = floorTopY + terraceH;
+    const terraceBox = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(cx, terraceY, cz),
+      new THREE.Vector3(terraceW, terraceH, terraceD)
+    );
+    this.colliders.push(terraceBox);
+    this.platforms.push({ box: terraceBox, topY: terraceTopY });
+
+    // 2. Grand Approach Steps (Facing South, +Z axis towards player spawn)
+    const stepCount = 7;
+    const stepWidth = 10;
+    const stepDepth = 1.1;
+    const totalStepRise = terraceTopY - groundH;
+    const stepHeight = totalStepRise / stepCount;
+
+    for (let i = 0; i < stepCount; i++) {
+      const stepY = groundH + (i + 0.5) * stepHeight;
+      const stepZ = terraceD / 2 + (stepCount - i - 0.5) * (stepDepth * 0.85);
+      const curWidth = stepWidth + (stepCount - i) * 0.4;
+      const stepGeom = new THREE.BoxGeometry(curWidth, stepHeight, stepDepth);
+      const stepMesh = new THREE.Mesh(stepGeom, stoneMat);
+      stepMesh.position.set(0, stepY, stepZ);
+      stepMesh.castShadow = true;
+      stepMesh.receiveShadow = true;
+      templeGroup.add(stepMesh);
+
+      const sBox = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(cx, stepY, cz + stepZ),
+        new THREE.Vector3(curWidth, stepHeight, stepDepth)
+      );
+      this.colliders.push(sBox);
+      this.platforms.push({ box: sBox, topY: groundH + (i + 1) * stepHeight });
+    }
+
+    // 3. Classical Marble Columns with Plinths and Golden Capitals
+    const columnH = 7.0;
+    const colCoords = [
+      // Front Row (Entrance)
+      { x: -6.5, z: 8.0 },
+      { x: -2.2, z: 8.0 },
+      { x: 2.2, z: 8.0 },
+      { x: 6.5, z: 8.0 },
+      // Back Row
+      { x: -6.5, z: -8.0 },
+      { x: -2.2, z: -8.0 },
+      { x: 2.2, z: -8.0 },
+      { x: 6.5, z: -8.0 },
+      // Side Flanks
+      { x: -6.5, z: 0 },
+      { x: 6.5, z: 0 },
+    ];
+
+    colCoords.forEach((cc) => {
+      // Column Base Plinth
+      const plinthGeom = new THREE.BoxGeometry(1.4, 0.4, 1.4);
+      const plinth = new THREE.Mesh(plinthGeom, stoneMat);
+      plinth.position.set(cc.x, terraceTopY + 0.2, cc.z);
+      plinth.castShadow = true;
+      templeGroup.add(plinth);
+
+      // Fluted Shaft
+      const colGeom = new THREE.CylinderGeometry(0.48, 0.56, columnH, 12);
+      const colMesh = new THREE.Mesh(colGeom, marbleMat);
+      colMesh.position.set(cc.x, terraceTopY + 0.4 + columnH / 2, cc.z);
+      colMesh.castShadow = true;
+      templeGroup.add(colMesh);
+
+      // Golden Capital
+      const capGeom = new THREE.BoxGeometry(1.5, 0.6, 1.5);
+      const capital = new THREE.Mesh(capGeom, goldMat);
+      capital.position.set(cc.x, terraceTopY + 0.4 + columnH + 0.3, cc.z);
+      capital.castShadow = true;
+      templeGroup.add(capital);
+
+      // Column Solid Hitbox
+      const colBox = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(cx + cc.x, terraceTopY + (columnH + 1.2) / 2, cz + cc.z),
+        new THREE.Vector3(1.4, columnH + 1.2, 1.4)
+      );
+      this.colliders.push(colBox);
+    });
+
+    // 4. Temple Architrave Beam & Sloped Golden Roof
+    const architraveY = terraceTopY + columnH + 1.0;
+    const archGeom = new THREE.BoxGeometry(17, 0.8, 19);
+    const archMesh = new THREE.Mesh(archGeom, stoneMat);
+    archMesh.position.set(0, architraveY, 0);
+    archMesh.castShadow = true;
+    templeGroup.add(archMesh);
+
+    // Sloped Triangular Roof Structure
+    const roofGeom = new THREE.ConeGeometry(12, 3.2, 4);
+    const roofMesh = new THREE.Mesh(roofGeom, roofMat);
+    roofMesh.position.set(0, architraveY + 2.0, 0);
+    roofMesh.rotation.y = Math.PI / 4;
+    roofMesh.scale.set(1.15, 1.0, 1.25);
+    roofMesh.castShadow = true;
+    roofMesh.receiveShadow = true;
+    templeGroup.add(roofMesh);
+
+    // Front Golden Sun Emblem on Pediment
+    const sunDiscGeom = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16);
+    const sunDisc = new THREE.Mesh(sunDiscGeom, goldMat);
+    sunDisc.rotation.x = Math.PI / 2;
+    sunDisc.position.set(0, architraveY + 1.5, 9.2);
+    templeGroup.add(sunDisc);
+
+    // Roof Top Collider and Platform
+    const roofTopY = architraveY + 3.6;
+    const roofBox = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(cx, architraveY + 1.6, cz),
+      new THREE.Vector3(15, 3.4, 17)
+    );
+    this.colliders.push(roofBox);
+    this.platforms.push({ box: roofBox, topY: roofTopY });
+
+    // 5. Central Sanctuary Altar & Eternal Sun Relic
+    const altarW = 4.2;
+    const altarH = 1.3;
+    const altarD = 3.0;
+    const altarY = terraceTopY + altarH / 2;
+    const altarGeom = new THREE.BoxGeometry(altarW, altarH, altarD);
+    const altarMesh = new THREE.Mesh(altarGeom, darkStoneMat);
+    altarMesh.position.set(0, altarY, 0);
+    altarMesh.castShadow = true;
+    altarMesh.receiveShadow = true;
+    templeGroup.add(altarMesh);
+
+    const altarBox = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(cx, altarY, cz),
+      new THREE.Vector3(altarW, altarH, altarD)
+    );
+    this.colliders.push(altarBox);
+    this.platforms.push({ box: altarBox, topY: terraceTopY + altarH });
+
+    // Floating Golden Sun Relic above Altar
+    const relicGroup = new THREE.Group();
+    const relicY = terraceTopY + altarH + 1.2;
+    relicGroup.position.set(0, relicY, 0);
+    relicGroup.userData.baseY = relicY;
+
+    const relicGeom = new THREE.OctahedronGeometry(0.7, 0);
+    const relicMat = new THREE.MeshStandardMaterial({
+      color: 0xffd700,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 2.2,
+      roughness: 0.1,
+      metalness: 0.9,
+    });
+    const relicMesh = new THREE.Mesh(relicGeom, relicMat);
+    relicGroup.add(relicMesh);
+
+    // Glowing Orbital Rings around relic
+    const rRing1 = new THREE.Mesh(
+      new THREE.TorusGeometry(1.1, 0.04, 8, 24),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15 })
+    );
+    rRing1.rotation.x = Math.PI / 4;
+    relicGroup.add(rRing1);
+
+    const rRing2 = new THREE.Mesh(
+      new THREE.TorusGeometry(1.3, 0.03, 8, 24),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+    );
+    rRing2.rotation.y = Math.PI / 3;
+    relicGroup.add(rRing2);
+
+    templeGroup.add(relicGroup);
+    this.multiplierHolograms.push(relicGroup);
+
+    // Sacred Sanctuary Light
+    const sanctuaryLight = new THREE.PointLight(0xffb703, 3.5, 24);
+    sanctuaryLight.position.set(0, relicY + 0.3, 0);
+    templeGroup.add(sanctuaryLight);
+    this.lanterns.push(sanctuaryLight);
+
+    // 6. 4 Sacred Braziers with Fire
+    const brazierPositions = [
+      { bx: -8.0, bz: 8.5 },
+      { bx: 8.0, bz: 8.5 },
+      { bx: -8.0, bz: -8.5 },
+      { bx: 8.0, bz: -8.5 },
+    ];
+
+    brazierPositions.forEach((bp) => {
+      // Brazier Stand
+      const bGeom = new THREE.CylinderGeometry(0.6, 0.4, 1.4, 8);
+      const bMesh = new THREE.Mesh(bGeom, darkStoneMat);
+      bMesh.position.set(bp.bx, floorTopY + 0.7, bp.bz);
+      bMesh.castShadow = true;
+      templeGroup.add(bMesh);
+
+      // Fire Bowl
+      const bowlGeom = new THREE.CylinderGeometry(0.8, 0.5, 0.5, 8);
+      const bowl = new THREE.Mesh(bowlGeom, goldMat);
+      bowl.position.set(bp.bx, floorTopY + 1.5, bp.bz);
+      templeGroup.add(bowl);
+
+      // Flame Mesh
+      const flameGeom = new THREE.ConeGeometry(0.45, 0.9, 8);
+      const flameMat = new THREE.MeshStandardMaterial({
+        color: 0xf97316,
+        emissive: 0xef4444,
+        emissiveIntensity: 2.0,
+      });
+      const flame = new THREE.Mesh(flameGeom, flameMat);
+      flame.position.set(bp.bx, floorTopY + 2.0, bp.bz);
+      templeGroup.add(flame);
+
+      const fLight = new THREE.PointLight(0xf97316, 2.0, 14);
+      fLight.position.set(bp.bx, floorTopY + 2.2, bp.bz);
+      templeGroup.add(fLight);
+      this.lanterns.push(fLight);
+    });
+
+    // 7. Parkour Ledges for Climbing to the Temple Roof
+    const ledges = [
+      { lx: -7.6, ly: terraceTopY + 2.4, lz: 0 },
+      { lx: -7.6, ly: terraceTopY + 4.6, lz: -3.5 },
+      { lx: -7.6, ly: terraceTopY + 6.8, lz: -7.0 },
+      { lx: -4.0, ly: architraveY + 0.5, lz: -8.5 },
+    ];
+    ledges.forEach((ld) => {
+      const ledgeGeom = new THREE.BoxGeometry(1.6, 0.35, 1.6);
+      const ledge = new THREE.Mesh(ledgeGeom, stoneMat);
+      ledge.position.set(ld.lx, ld.ly, ld.lz);
+      ledge.castShadow = true;
+      ledge.receiveShadow = true;
+      templeGroup.add(ledge);
+
+      const lBox = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(cx + ld.lx, ld.ly, cz + ld.lz),
+        new THREE.Vector3(1.6, 0.35, 1.6)
+      );
+      this.colliders.push(lBox);
+      this.platforms.push({ box: lBox, topY: ld.ly + 0.18 });
+    });
+
+    this.scene.add(templeGroup);
   }
 
   private createSpringPad(x: number, z: number, explicitPlatformY?: number) {
@@ -1730,7 +2326,17 @@ export class GameWorld {
       { x: 68, y: 10.5, z: -18, type: 'gem', value: 40 },
       { x: 82, y: 14.0, z: -25, type: 'star', value: 100 }, // East Dunes Peak Star!
 
-      // 5. North Highlands Sky Citadel
+      // 5. Ancient Temple of the Sun (Mundo 1)
+      { x: 0, y: 16.5, z: -68, type: 'star', value: 10 }, // Summit Solar Star!
+      { x: 0, y: 10.5, z: -68, type: 'gem', value: 5 }, // Sanctuary Holy Altar Relic!
+      { x: -3.5, y: 9.0, z: -68, type: 'gold', value: 1 },
+      { x: 3.5, y: 9.0, z: -68, type: 'gold', value: 1 },
+      { x: 0, y: 7.8, z: -59, type: 'gold', value: 1 }, // Temple Entrance Stair 1
+      { x: -2.5, y: 8.2, z: -62, type: 'gold', value: 1 }, // Temple Entrance Stair 2
+      { x: 2.5, y: 8.2, z: -62, type: 'gold', value: 1 }, // Temple Entrance Stair 3
+      { x: -7.6, y: 15.0, z: -68, type: 'gem', value: 5 }, // Roof Parkour Ledge Gem
+
+      // 6. North Highlands Sky Citadel
       { x: 0, y: 9.5, z: -65, type: 'gem', value: 35 },
       { x: -12, y: 12.5, z: -78, type: 'gem', value: 40 },
       { x: -25, y: 15.5, z: -90, type: 'gem', value: 45 },
@@ -1773,14 +2379,12 @@ export class GameWorld {
 
     const coinLocations = rawCoinLocations.map((loc) => {
       const groundH = this.getTerrainHeight(loc.x, loc.z);
-      if (loc.onGround) {
-        return { ...loc, y: groundH + 1.2 };
+      const adjustedValue = loc.type === 'gem' ? 5 : loc.type === 'star' ? 10 : 1;
+      let finalY = loc.y;
+      if (loc.onGround || loc.y < groundH + 1.2) {
+        finalY = groundH + 1.2;
       }
-      // Safety guarantee: Ensure no aerial or platform coin clips below the terrain height
-      if (loc.y < groundH + 1.2) {
-        return { ...loc, y: groundH + 1.2 };
-      }
-      return loc;
+      return { ...loc, y: finalY, value: adjustedValue };
     });
 
     const goldMat = new THREE.MeshStandardMaterial({
@@ -1995,6 +2599,13 @@ export class GameWorld {
     if (e.code === 'KeyE') {
       if (this.isNearShop) {
         this.callbacks.onOpenShop?.();
+      } else if (this.isNearMultiplierShop) {
+        this.callbacks.onOpenMultiplierShop?.();
+      }
+    }
+    if (e.code === 'KeyT') {
+      if (this.isNearShop) {
+        this.callbacks.onOpenShop?.();
       }
     }
     if (e.code === 'KeyR' || e.code === 'KeyQ') {
@@ -2099,6 +2710,10 @@ export class GameWorld {
     this.mouseSensitivity = val;
   }
 
+  public setSensitivity(val: number) {
+    this.mouseSensitivity = val;
+  }
+
   public setFov(val: number) {
     this.baseFov = Math.max(50, Math.min(120, val));
   }
@@ -2121,6 +2736,10 @@ export class GameWorld {
 
   public isPlayerNearShop(): boolean {
     return this.isNearShop;
+  }
+
+  public isPlayerNearMultiplierShop(): boolean {
+    return this.isNearMultiplierShop;
   }
 
   public getBuffs() {
@@ -2178,6 +2797,85 @@ export class GameWorld {
     this.camera.getWorldDirection(lookDir);
     const slashPos = this.playerPos.clone().add(new THREE.Vector3(0, 1.4, 0)).addScaledVector(lookDir, 1.6);
     this.spawnSwordSlashParticles(slashPos, isLaser ? 0x06b6d4 : 0xf59e0b);
+
+    // Check hit against zombies
+    const damage = this.equippedSwordId === 'neon_katana' ? 3 : this.equippedSwordId === 'fire_greatsword' ? 2 : 1;
+    this.zombieSystem?.checkSwordHit(this.playerPos, lookDir, damage, this.currentWorld);
+  }
+
+  public spawnBonusCoin(pos: THREE.Vector3, type: 'gold' | 'gem') {
+    const coinId = 300 + Math.floor(Math.random() * 10000);
+    const coinGroup = new THREE.Group();
+    coinGroup.position.copy(pos);
+
+    const coinMat = new THREE.MeshStandardMaterial({
+      color: type === 'gem' ? 0x06b6d4 : 0xffd700,
+      metalness: 0.8,
+      roughness: 0.2,
+    });
+
+    let mesh: THREE.Mesh;
+    if (type === 'gem') {
+      mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.38, 0), coinMat);
+    } else {
+      mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.1, 16), coinMat);
+      mesh.rotation.x = Math.PI / 2;
+    }
+    mesh.castShadow = true;
+    coinGroup.add(mesh);
+    this.scene.add(coinGroup);
+
+    this.coins.push({
+      data: {
+        id: coinId,
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+        collected: false,
+        value: type === 'gem' ? 5 : 1,
+        type,
+      },
+      mesh: coinGroup,
+      light: null,
+    });
+  }
+
+  public spawnSlashParticles(pos: THREE.Vector3, colorHex: number, count = 20) {
+    const geom = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const velocities: THREE.Vector3[] = [];
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = pos.x;
+      positions[i * 3 + 1] = pos.y;
+      positions[i * 3 + 2] = pos.z;
+
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 5,
+        Math.random() * 4 + 1.0,
+        (Math.random() - 0.5) * 5
+      );
+      velocities.push(vel);
+    }
+
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: colorHex,
+      size: 0.8,
+      transparent: true,
+      opacity: 1.0,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const points = new THREE.Points(geom, mat);
+    this.scene.add(points);
+
+    this.particleSystems.push({
+      points,
+      velocities,
+      age: 0,
+      maxAge: 0.7,
+    });
   }
 
   public applyBuff(type: 'speed' | 'jump' | 'magnet', durationSec: number, multiplierOrRadius: number) {
@@ -2445,12 +3143,21 @@ export class GameWorld {
       }
     }
 
-    // 3. Perimeter Mountain & Boundary Constraint (Radius 144 for vast world)
-    const distFromOrigin = Math.hypot(this.playerPos.x, this.playerPos.z);
-    if (distFromOrigin > 144) {
-      const angle = Math.atan2(this.playerPos.z, this.playerPos.x);
-      this.playerPos.x = Math.cos(angle) * 144;
-      this.playerPos.z = Math.sin(angle) * 144;
+    // 3. Perimeter Mountain & Boundary Constraint for current dimension
+    if (this.currentWorld === 'main') {
+      const distFromOrigin = Math.hypot(this.playerPos.x, this.playerPos.z);
+      if (distFromOrigin > 144) {
+        const angle = Math.atan2(this.playerPos.z, this.playerPos.x);
+        this.playerPos.x = Math.cos(angle) * 144;
+        this.playerPos.z = Math.sin(angle) * 144;
+      }
+    } else {
+      const distFromCandy = Math.hypot(this.playerPos.x - 600, this.playerPos.z - 600);
+      if (distFromCandy > 105) {
+        const angle = Math.atan2(this.playerPos.z - 600, this.playerPos.x - 600);
+        this.playerPos.x = 600 + Math.cos(angle) * 105;
+        this.playerPos.z = 600 + Math.sin(angle) * 105;
+      }
     }
 
     // 4. Move Y (Vertical)
@@ -2513,24 +3220,39 @@ export class GameWorld {
       }
     }
 
-    // 7. Check Shop Proximity & Animate Shop
-    const distToShop = this.playerPos.distanceTo(this.shopPos);
-    const nearShop = distToShop < 3.8;
+    // 7. Check Shop Proximity & Animate Shops (Item Shop & Multiplier Shop)
+    const activeShopPos = this.currentWorld === 'candy' ? this.candyShopPos : this.mainShopPos;
+    const distToShop = this.playerPos.distanceTo(activeShopPos);
+    const nearShop = distToShop < 4.2;
     if (nearShop !== this.isNearShop) {
       this.isNearShop = nearShop;
       this.callbacks.onNearShop?.(nearShop);
     }
 
+    const activeMultiplierPos = this.currentWorld === 'candy' ? this.candyMultiplierShopPos : this.mainMultiplierShopPos;
+    const distToMultiplier = this.playerPos.distanceTo(activeMultiplierPos);
+    const nearMultiplier = distToMultiplier < 4.2;
+    if (nearMultiplier !== this.isNearMultiplierShop) {
+      this.isNearMultiplierShop = nearMultiplier;
+      this.callbacks.onNearMultiplierShop?.(nearMultiplier);
+    }
+
     const time = this.clock.getElapsedTime();
-    if (this.shopkeeperMesh) {
-      this.shopkeeperMesh.position.y = 0.35 + Math.sin(time * 2.5) * 0.03;
-    }
-    if (this.shopRuneRing) {
-      (this.shopRuneRing.material as THREE.MeshBasicMaterial).opacity = 0.45 + Math.sin(time * 3) * 0.25;
-    }
-    if (this.shopDisplayWeapons) {
-      this.shopDisplayWeapons.rotation.y = time * 0.7;
-    }
+    this.shopkeepers.forEach((sk) => {
+      const baseY = (sk.userData.baseY as number) || 0.35;
+      sk.position.y = baseY + Math.sin(time * 2.5) * 0.03;
+    });
+    this.shopRuneRings.forEach((ring) => {
+      (ring.material as THREE.MeshBasicMaterial).opacity = 0.45 + Math.sin(time * 3) * 0.25;
+    });
+    this.shopDisplayWeapons.forEach((disp) => {
+      disp.rotation.y = time * 0.7;
+    });
+    this.multiplierHolograms.forEach((holo) => {
+      const baseY = (holo.userData.baseY as number) || 2.1;
+      holo.position.y = baseY + Math.sin(time * 3.2) * 0.1;
+      holo.rotation.y = time * 1.6;
+    });
 
     // 8. Speed Aura Particles
     if (this.speedAuraParticles) {
@@ -2561,19 +3283,66 @@ export class GameWorld {
       }
     }
 
-    // 11. Update Coins (Rotation, Magnet Pull, Pickup)
+    // 11. Portal Energy Rings & Teleportation
+    if (this.candyWorldElements) {
+      this.candyWorldElements.mainPortal.ring.rotation.z += 2.2 * dt;
+      this.candyWorldElements.candyPortal.ring.rotation.z += 2.2 * dt;
+
+      if (this.portalCooldownTimer > 0) {
+        this.portalCooldownTimer -= dt;
+      } else {
+        if (this.currentWorld === 'main') {
+          const horizDist = Math.hypot(
+            this.playerPos.x - this.candyWorldElements.mainPortal.pos.x,
+            this.playerPos.z - this.candyWorldElements.mainPortal.pos.z
+          );
+          if (horizDist < 4.2 && Math.abs(this.playerPos.y - this.candyWorldElements.mainPortal.pos.y) < 6.0) {
+            this.teleportToWorld('candy');
+          }
+        } else {
+          const horizDist = Math.hypot(
+            this.playerPos.x - this.candyWorldElements.candyPortal.pos.x,
+            this.playerPos.z - this.candyWorldElements.candyPortal.pos.z
+          );
+          if (horizDist < 4.2 && Math.abs(this.playerPos.y - this.candyWorldElements.candyPortal.pos.y) < 6.0) {
+            this.teleportToWorld('main');
+          }
+        }
+      }
+    }
+
+    // 12. Update Zombies (AI, Pathing, Attack, Hit Feedback)
+    this.zombieSystem?.update(dt, this.playerPos, this.currentWorld, (knockDir) => {
+      this.playerVel.x = knockDir.x * 11;
+      this.playerVel.z = knockDir.z * 11;
+      this.playerVel.y = 5.2;
+      this.isOnGround = false;
+    });
+
+    // 13. Stomp Check on Zombies
+    if (this.playerVel.y < -0.5) {
+      const stomped = this.zombieSystem?.checkPlayerStomp(this.playerPos, this.playerVel.y, this.currentWorld);
+      if (stomped) {
+        this.playerVel.y = 13.5;
+        this.isOnGround = false;
+        this.triggerHaptic([25, 40, 25]);
+        soundEngine.playSpringPadSound();
+      }
+    }
+
+    // 14. Update Coins (Rotation, Magnet Pull, Pickup)
     this.updateCoins(dt);
 
-    // 12. Update Particles
+    // 15. Update Particles
     this.updateParticles(dt);
 
-    // 13. Position Camera & Avatar
+    // 16. Position Camera & Avatar
     this.updateCameraAndAvatar(dt, horizontalSpeed);
 
-    // 14. Render Frame
+    // 17. Render Frame
     this.renderer.render(this.scene, this.camera);
 
-    // 15. FPS Tracking
+    // 18. FPS Tracking
     this.frameCount++;
     const now = performance.now();
     if (now - this.lastFpsTime >= 500) {
@@ -2583,6 +3352,51 @@ export class GameWorld {
       this.lastFpsTime = now;
     }
   };
+
+  public teleportToWorld(target: WorldDimension) {
+    this.currentWorld = target;
+    this.portalCooldownTimer = 2.8;
+
+    soundEngine.playPortalTeleportSound();
+    this.triggerHaptic([30, 60, 40, 80]);
+
+    if (target === 'candy') {
+      this.playerPos.set(600, 1.2, 608);
+      this.playerVel.set(0, 0, 0);
+      this.yaw = Math.PI; // Face towards candy forest
+      this.pitch = 0;
+      this.isOnGround = true;
+
+      // Sweet candy atmosphere
+      this.scene.background = new THREE.Color(0xfbcfe8);
+      this.scene.fog = new THREE.FogExp2(0xfbcfe8, 0.0032);
+      this.sunLight.color.setHex(0xffedd5);
+      this.sunMesh.material = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+
+      this.callbacks.onWorldChange?.('candy');
+      this.spawnSlashParticles(this.playerPos.clone(), 0xf43f5e, 45);
+    } else {
+      const groundH = this.getTerrainHeight(18, -12);
+      this.playerPos.set(18, groundH + 1.2, -12);
+      this.playerVel.set(0, 0, 0);
+      this.yaw = 0;
+      this.pitch = 0;
+      this.isOnGround = true;
+
+      // Restore Main World atmosphere
+      this.scene.background = new THREE.Color(0x87ceeb);
+      this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0038);
+      this.sunLight.color.setHex(0xfffaed);
+      this.sunMesh.material = new THREE.MeshBasicMaterial({ color: 0xffea78 });
+
+      this.callbacks.onWorldChange?.('main');
+      this.spawnSlashParticles(this.playerPos.clone(), 0x38bdf8, 45);
+    }
+  }
+
+  public getCurrentWorld(): WorldDimension {
+    return this.currentWorld;
+  }
 
   private updateCoins(dt: number) {
     const time = this.clock.getElapsedTime();
@@ -2771,29 +3585,36 @@ export class GameWorld {
             this.limbs.cape.rotation.x = THREE.MathUtils.lerp(this.limbs.cape.rotation.x, windAngle, 10 * dt);
           }
         } else {
-          // Idle breathing and relaxed natural human stance
-          const breathe = Math.sin(time * 2.2) * 0.015;
-          this.limbs.torso.position.y = THREE.MathUtils.lerp(this.limbs.torso.position.y, 0.82 + breathe, 8 * dt);
-          this.limbs.torso.rotation.x = THREE.MathUtils.lerp(this.limbs.torso.rotation.x, 0, 8 * dt);
-          this.limbs.torso.rotation.y = THREE.MathUtils.lerp(this.limbs.torso.rotation.y, 0, 8 * dt);
-          this.limbs.torso.rotation.z = THREE.MathUtils.lerp(this.limbs.torso.rotation.z, 0, 8 * dt);
+          // Idle breathing and alive natural human stance
+          const breathe = Math.sin(time * 2.4) * 0.022;
+          const subtleShift = Math.sin(time * 0.9);
 
-          this.limbs.head.position.y = THREE.MathUtils.lerp(this.limbs.head.position.y, 1.38 + breathe, 8 * dt);
-          this.limbs.head.rotation.x = Math.sin(time * 1.5) * 0.02;
-          this.limbs.head.rotation.y = Math.sin(time * 0.8) * 0.06;
+          // Torso breathing expansion & natural chest heave
+          this.limbs.torso.scale.set(1 + breathe * 0.9, 1 + breathe * 0.5, 1 + breathe * 0.9);
+          this.limbs.torso.position.y = THREE.MathUtils.lerp(this.limbs.torso.position.y, 0.82 + breathe * 1.1, 10 * dt);
+          this.limbs.torso.rotation.x = THREE.MathUtils.lerp(this.limbs.torso.rotation.x, breathe * 0.4, 8 * dt);
+          this.limbs.torso.rotation.y = THREE.MathUtils.lerp(this.limbs.torso.rotation.y, subtleShift * 0.02, 6 * dt);
+          this.limbs.torso.rotation.z = THREE.MathUtils.lerp(this.limbs.torso.rotation.z, subtleShift * 0.015, 6 * dt);
 
-          this.limbs.leftLeg.rotation.x = THREE.MathUtils.lerp(this.limbs.leftLeg.rotation.x, 0, 8 * dt);
-          this.limbs.rightLeg.rotation.x = THREE.MathUtils.lerp(this.limbs.rightLeg.rotation.x, 0, 8 * dt);
+          // Head natural breathing and curious micro-glances
+          this.limbs.head.position.y = THREE.MathUtils.lerp(this.limbs.head.position.y, 1.38 + breathe * 1.3, 10 * dt);
+          this.limbs.head.rotation.x = Math.sin(time * 1.6) * 0.025 - breathe * 0.3;
+          this.limbs.head.rotation.y = THREE.MathUtils.lerp(this.limbs.head.rotation.y, Math.sin(time * 0.7) * 0.07 + Math.sin(time * 0.25) * 0.04, 6 * dt);
+
+          // Leg weight shift
+          this.limbs.leftLeg.rotation.x = THREE.MathUtils.lerp(this.limbs.leftLeg.rotation.x, subtleShift * 0.015, 8 * dt);
+          this.limbs.rightLeg.rotation.x = THREE.MathUtils.lerp(this.limbs.rightLeg.rotation.x, -subtleShift * 0.015, 8 * dt);
           this.limbs.leftLeg.rotation.z = THREE.MathUtils.lerp(this.limbs.leftLeg.rotation.z, 0, 8 * dt);
           this.limbs.rightLeg.rotation.z = THREE.MathUtils.lerp(this.limbs.rightLeg.rotation.z, 0, 8 * dt);
 
-          this.limbs.leftArm.rotation.x = THREE.MathUtils.lerp(this.limbs.leftArm.rotation.x, 0, 8 * dt);
-          this.limbs.leftArm.rotation.z = 0.08 + Math.sin(time * 2.2) * 0.02;
+          // Arms relaxed posture following breath
+          this.limbs.leftArm.rotation.x = THREE.MathUtils.lerp(this.limbs.leftArm.rotation.x, breathe * 0.5, 8 * dt);
+          this.limbs.leftArm.rotation.z = 0.08 + Math.sin(time * 2.4) * 0.025;
 
           if (!this.isSwingingSword) {
-            this.limbs.rightArm.rotation.x = THREE.MathUtils.lerp(this.limbs.rightArm.rotation.x, 0, 8 * dt);
+            this.limbs.rightArm.rotation.x = THREE.MathUtils.lerp(this.limbs.rightArm.rotation.x, breathe * 0.5, 8 * dt);
             this.limbs.rightArm.rotation.y = THREE.MathUtils.lerp(this.limbs.rightArm.rotation.y, 0, 8 * dt);
-            this.limbs.rightArm.rotation.z = -0.08 - Math.sin(time * 2.2) * 0.02;
+            this.limbs.rightArm.rotation.z = -0.08 - Math.sin(time * 2.4) * 0.025;
           }
 
           if (this.limbs.cape) {
@@ -2858,9 +3679,9 @@ export class GameWorld {
       this.camera.updateProjectionMatrix();
     }
 
-    // Avatar Transform
+    // Avatar Transform (faces forward in movement & camera direction)
     this.playerMesh.position.copy(this.playerPos);
-    this.playerMesh.rotation.y = this.yaw;
+    this.playerMesh.rotation.y = this.yaw + Math.PI;
 
     if (this.viewMode === 'first_person') {
       this.playerMesh.visible = false;

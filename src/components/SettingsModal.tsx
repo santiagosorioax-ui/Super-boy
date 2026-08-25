@@ -235,39 +235,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex justify-between text-xs mb-1 text-slate-300">
                 <span>Campo de Visión (FOV)</span>
                 <span className="font-semibold text-indigo-400">
-                  {settings.fov || 85}° { (settings.fov || 85) >= 95 ? '(Ultra Amplio)' : (settings.fov || 85) >= 82 ? '(Panorámico)' : '(Estándar)' }
+                  {settings.fov || 100}° { (settings.fov || 100) >= 100 ? '(Óptimo / Ultra Amplio)' : (settings.fov || 100) >= 85 ? '(Panorámico)' : '(Estándar)' }
                 </span>
               </div>
               <input
                 type="range"
-                min="65"
-                max="105"
+                min="70"
+                max="115"
                 step="1"
-                value={settings.fov || 85}
+                value={settings.fov || 100}
                 onChange={(e) => onUpdateSettings({ fov: parseInt(e.target.value, 10) })}
                 className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
               <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
-                <span>65° Clásico</span>
-                <span>85° Recomendado</span>
-                <span>105° Máximo</span>
+                <span>70° Cerrado</span>
+                <span>100° Óptimo</span>
+                <span>115° Máximo</span>
               </div>
             </div>
 
             <div>
               <div className="flex justify-between text-xs mb-1 text-slate-300">
-                <span>Sensibilidad de Cámara (Giro táctil)</span>
-                <span>{settings.mouseSensitivity.toFixed(1)}x</span>
+                <span>Sensibilidad de Cámara (Giro táctil / Ratón)</span>
+                <span className="font-semibold text-indigo-400">{settings.mouseSensitivity.toFixed(1)}x</span>
               </div>
               <input
                 type="range"
-                min="0.4"
-                max="2.5"
+                min="0.5"
+                max="3.0"
                 step="0.1"
                 value={settings.mouseSensitivity}
                 onChange={(e) => onUpdateSettings({ mouseSensitivity: parseFloat(e.target.value) })}
                 className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
+              <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                <span>0.5x Suave</span>
+                <span>1.5x Rápido</span>
+                <span>3.0x Ultra</span>
+              </div>
             </div>
 
             <div className="flex items-center justify-between pt-1">

@@ -1,3 +1,5 @@
+export type WorldDimension = 'main' | 'candy';
+
 export interface GameSettings {
   musicVolume: number;
   sfxVolume: number;
@@ -10,7 +12,7 @@ export interface GameSettings {
   viewMode: 'first_person' | 'third_person';
 }
 
-export type ItemCategory = 'sword' | 'drink' | 'upgrade';
+export type ItemCategory = 'sword' | 'drink' | 'upgrade' | 'multiplier';
 
 export interface ShopItem {
   id: string;
@@ -28,6 +30,16 @@ export interface ShopItem {
   magnetRadius?: number;
 }
 
+export interface MultiplierTier {
+  multiplier: number;
+  name: string;
+  price: number;
+  description: string;
+  icon: string;
+  color: string;
+  badge?: string;
+}
+
 export interface PlayerBuffs {
   speedTimeRemaining: number;
   jumpTimeRemaining: number;
@@ -39,9 +51,13 @@ export interface PlayerBuffs {
 
 export interface PlayerInventory {
   coins: number;
+  health: number; // 0 to 5 (5 consecutive zombie hits kill the player)
+  maxHealth: number; // 5
   ownedSwordIds: string[];
   equippedSwordId: string | null;
   activeBuffs: PlayerBuffs;
+  playerMultiplier: number;
+  unlockedMultipliers: number[];
 }
 
 export interface CoinData {
