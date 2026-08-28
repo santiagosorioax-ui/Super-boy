@@ -17,9 +17,11 @@ import {
   ShoppingBag,
   Sword,
   Sparkles,
-  Home
+  Home,
+  Heart,
+  Shirt
 } from 'lucide-react';
-import { TimeState, PlayerInventory } from '../types';
+import { TimeState, PlayerInventory, WorldDimension, MayanBossState } from '../types';
 
 interface HUDProps {
   score: number;
@@ -36,8 +38,12 @@ interface HUDProps {
   radar: { angleDeg: number; distance: number } | null;
   isNearShop?: boolean;
   isNearMultiplierShop?: boolean;
+  isNearTemple?: boolean;
+  templeCost?: number;
+  onEnterTemple?: () => void;
+  bossState?: MayanBossState | null;
   inventory?: PlayerInventory;
-  currentDimension?: 'main' | 'candy';
+  currentDimension?: WorldDimension;
   zombiesDefeated?: number;
   onToggleMusic: () => void;
   onToggleFlashlight: () => void;
@@ -77,6 +83,10 @@ export const HUD: React.FC<HUDProps> = ({
   radar,
   isNearShop = false,
   isNearMultiplierShop = false,
+  isNearTemple = false,
+  templeCost = 500,
+  onEnterTemple,
+  bossState,
   inventory,
   currentDimension = 'main',
   zombiesDefeated = 0,
@@ -141,137 +151,72 @@ export const HUD: React.FC<HUDProps> = ({
   return (
     <div id="hud-container" className="fixed inset-0 pointer-events-none select-none z-10 overflow-hidden font-sans">
       {/* 1. TOP STATUS BAR */}
-      <header className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-auto">
-        {/* Left: Coins, Score & Shop Button */}
-        <div className="flex items-center gap-2">
+      <header className="absolute top-3 left-3 right-3 flex items-start justify-between gap-2 pointer-events-auto">
+        {/* Left Column: Compact Coins Card & Health Hearts underneath */}
+        <div className="flex flex-col gap-1.5 items-start">
+          {/* Mini Coins Card */}
           <div 
             id="hud-coins-card"
-            className="flex items-center gap-3 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 rounded-2xl px-3.5 py-2 shadow-lg text-white"
+            className="flex items-center gap-2 bg-slate-950/85 backdrop-blur-md border border-slate-700/60 rounded-xl px-2.5 py-1.5 shadow-md text-white"
           >
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-400">
-              <Coins className="w-5 h-5 animate-pulse" />
+            <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-400">
+              <Coins className="w-3.5 h-3.5 animate-pulse" />
             </div>
-            <div>
-              <div className="flex items-center gap-1.5 font-bold text-sm leading-tight text-amber-300">
-                <span>{inventory ? inventory.coins : collectedCoins}</span>
-                <span className="text-slate-400 text-xs font-medium">monedas</span>
-              </div>
-              <div className="text-[11px] text-slate-300 font-medium tracking-wide">
-                {score} pts ({collectedCoins}/{totalCoins})
-              </div>
+            <div className="flex items-center gap-1.5 font-black text-xs leading-none text-amber-300">
+              <span>{inventory ? inventory.coins : collectedCoins}</span>
+              <span className="text-slate-400 text-[10px] font-normal">monedas</span>
             </div>
 
-            {/* Mini progress bar */}
-            <div className="hidden sm:block w-16 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-              <div
-                className="h-full bg-gradient-to-r from-amber-400 to-yellow-300 transition-all duration-300 rounded-full"
-                style={{ width: `${coinProgress}%` }}
-              />
-            </div>
-
-            {/* Combo Multiplier Badge */}
+            {/* Mini Combo Badge if active */}
             {combo > 1 && (
-              <div className="flex items-center gap-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[11px] font-black px-2 py-0.5 rounded-full shadow animate-bounce">
-                <Flame className="w-3 h-3 fill-current" />
+              <div className="flex items-center gap-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow animate-bounce">
+                <Flame className="w-2.5 h-2.5 fill-current" />
                 <span>x{combo}</span>
               </div>
             )}
           </div>
 
-          {/* Dedicated Shop Button */}
-          {onOpenShop && (
-            <button
-              id="hud-btn-shop"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onOpenShop();
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenShop();
-              }}
-              aria-label="Abrir Tienda"
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl border backdrop-blur-md shadow-lg transition active:scale-95 text-xs font-bold touch-none select-none ${
-                isNearShop
-                  ? 'bg-amber-500 border-amber-300 text-slate-950 animate-bounce shadow-amber-500/30'
-                  : 'bg-slate-900/85 border-amber-500/40 text-amber-300 hover:bg-slate-800'
-              }`}
-            >
-              <ShoppingBag className="w-4 h-4" />
-              <span className="hidden xs:inline">Tienda</span>
-            </button>
-          )}
-
-          {/* Dedicated Multiplier Shop Button */}
-          {onOpenMultiplierShop && (
-            <button
-              id="hud-btn-multiplier-shop"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onOpenMultiplierShop();
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenMultiplierShop();
-              }}
-              aria-label="Tienda de Multiplicadores"
-              title="Tienda de Multiplicadores de Monedas (1x a 6x)"
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl border backdrop-blur-md shadow-lg transition active:scale-95 text-xs font-bold touch-none select-none ${
-                isNearMultiplierShop
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-300 text-white animate-bounce shadow-purple-500/40 ring-2 ring-purple-400'
-                  : 'bg-slate-900/85 border-purple-500/40 text-purple-300 hover:bg-slate-800'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <span className="font-extrabold text-amber-300">{inventory?.playerMultiplier || 1}x</span>
-              <span className="hidden xs:inline">Multiplicador</span>
-            </button>
-          )}
-
-          {/* Dedicated Return to Spawn / Home Button */}
-          {onReturnToSpawn && (
-            <button
-              id="hud-btn-return-home"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onReturnToSpawn();
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onReturnToSpawn();
-              }}
-              aria-label="Volver al Inicio"
-              title="Volver al Inicio del mapa (Tecla H)"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl border border-sky-500/50 bg-sky-950/80 hover:bg-sky-900/90 text-sky-200 backdrop-blur-md shadow-lg shadow-sky-950/40 transition active:scale-95 text-xs font-bold touch-none select-none hover:border-sky-400"
-            >
-              <Home className="w-4 h-4 text-sky-400" />
-              <span className="hidden xs:inline">Inicio (H)</span>
-            </button>
-          )}
+          {/* 5-Heart Health Bar right underneath coins */}
+          <div
+            id="hud-health-card"
+            className={`flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md border rounded-xl px-2.5 py-1 shadow-md text-white transition-all ${
+              (inventory?.health ?? 5) <= 2
+                ? 'border-rose-500/80 bg-rose-950/60 ring-1 ring-rose-500/50 animate-pulse'
+                : 'border-slate-700/60'
+            }`}
+            title={`Salud: ${inventory?.health ?? 5} de ${inventory?.maxHealth ?? 5} golpes`}
+          >
+            <Heart className={`w-3.5 h-3.5 fill-rose-500 text-rose-500 ${(inventory?.health ?? 5) <= 2 ? 'animate-ping' : ''}`} />
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((heartIndex) => {
+                const isFull = heartIndex <= (inventory?.health ?? 5);
+                return (
+                  <span
+                    key={heartIndex}
+                    className={`text-[11px] leading-none transition-transform duration-200 ${
+                      isFull ? 'scale-100' : 'scale-75 opacity-25 grayscale'
+                    }`}
+                  >
+                    {isFull ? '❤️' : '🖤'}
+                  </span>
+                );
+              })}
+            </div>
+            <span className="text-[11px] font-bold text-rose-300 ml-0.5 leading-none">
+              {inventory?.health ?? 5}/5
+            </span>
+          </div>
         </div>
 
-        {/* Center: Dimension Badge, Day/Night Clock Widget & Radar */}
-        <div className="flex items-center gap-2">
-          {/* Dimension indicator badge */}
-          <div
-            id="hud-dimension-badge"
-            className={`hidden sm:flex items-center gap-1.5 backdrop-blur-md border rounded-2xl px-3 py-1.5 shadow-lg text-xs font-bold ${
-              currentDimension === 'candy'
-                ? 'bg-pink-950/80 border-pink-400/50 text-pink-200'
-                : 'bg-emerald-950/80 border-emerald-400/50 text-emerald-200'
-            }`}
-          >
-            <span>{currentDimension === 'candy' ? '🍭' : '🌿'}</span>
-            <span>{currentDimension === 'candy' ? 'Mundo de Caramelo' : 'Valle Principal'}</span>
-          </div>
-
+        {/* Center: Day/Night Clock Widget & Optional Zombie/FPS Indicators */}
+        <div className="flex items-center gap-1.5">
           {/* Zombie Kills Badge if any */}
           {zombiesDefeated > 0 && (
             <div
               id="hud-zombie-counter"
-              className="flex items-center gap-1 bg-red-950/80 backdrop-blur-md border border-red-500/40 text-red-300 rounded-2xl px-2.5 py-1.5 shadow-lg text-xs font-bold"
+              className="flex items-center gap-1 bg-red-950/80 backdrop-blur-md border border-red-500/40 text-red-300 rounded-xl px-2 py-1 shadow-md text-xs font-bold"
             >
-              <Sword className="w-3.5 h-3.5 text-red-400" />
+              <Sword className="w-3 h-3 text-red-400" />
               <span>{zombiesDefeated}</span>
             </div>
           )}
@@ -279,14 +224,14 @@ export const HUD: React.FC<HUDProps> = ({
           {/* Day/Night Clock */}
           <div 
             id="hud-time-widget"
-            className={`flex items-center gap-2 backdrop-blur-md border rounded-2xl px-3 py-1.5 shadow-lg ${period.bg}`}
+            className={`flex items-center gap-1.5 backdrop-blur-md border rounded-xl px-2.5 py-1 shadow-md ${period.bg}`}
           >
             {period.icon}
             <div className="flex flex-col text-left">
               <span className="text-xs font-bold tracking-wider leading-none">
                 {timeState.formattedTime}
               </span>
-              <span className="text-[10px] opacity-80 uppercase tracking-widest font-semibold mt-0.5">
+              <span className="text-[9px] opacity-80 uppercase tracking-widest font-semibold mt-0.5 leading-none">
                 {period.label}
               </span>
             </div>
@@ -296,7 +241,7 @@ export const HUD: React.FC<HUDProps> = ({
           {showFps && (
             <div
               id="hud-fps-counter"
-              className={`px-2.5 py-1.5 rounded-2xl backdrop-blur-md border shadow-lg text-xs font-mono font-bold flex items-center gap-1 ${
+              className={`px-2 py-1 rounded-xl backdrop-blur-md border shadow-md text-[11px] font-mono font-bold flex items-center gap-1 ${
                 fps >= 45 
                   ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300' 
                   : fps >= 25 
@@ -305,7 +250,7 @@ export const HUD: React.FC<HUDProps> = ({
               }`}
             >
               <span>{fps}</span>
-              <span className="text-[9px] font-sans opacity-70">FPS</span>
+              <span className="text-[8px] font-sans opacity-70">FPS</span>
             </div>
           )}
 
@@ -313,20 +258,32 @@ export const HUD: React.FC<HUDProps> = ({
           {radar && (
             <div
               id="hud-radar-compass"
-              className="hidden sm:flex items-center gap-1.5 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 rounded-2xl px-3 py-1.5 text-white shadow-lg text-xs"
+              className="hidden md:flex items-center gap-1 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 rounded-xl px-2 py-1 text-white shadow-md text-xs"
               title="Brújula a la moneda más cercana"
             >
               <Compass 
-                className="w-4 h-4 text-emerald-400 transition-transform duration-100" 
+                className="w-3.5 h-3.5 text-emerald-400 transition-transform duration-100" 
                 style={{ transform: `rotate(${radar.angleDeg}deg)` }}
               />
-              <span className="font-semibold text-emerald-300">{radar.distance}m</span>
+              <span className="font-semibold text-emerald-300 text-[11px]">{radar.distance}m</span>
             </div>
           )}
         </div>
 
-        {/* Right: Quick Action Controls (Sound, Help, Settings) */}
+        {/* Right: Quick Action Controls (Sound, Outfits, Help, Settings) */}
         <div className="flex items-center gap-1.5">
+          {/* Clothing Button (sin función asignada por ahora) */}
+          <button
+            id="hud-btn-outfits"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Ropa"
+            title="Ropa y Aspectos"
+            className="p-2 rounded-xl border border-purple-500/40 bg-purple-950/80 backdrop-blur-md text-purple-300 hover:text-purple-100 hover:border-purple-400 shadow-md transition active:scale-95 touch-none select-none"
+          >
+            <Shirt className="w-4 h-4" />
+          </button>
+
           <button
             id="hud-btn-music"
             onPointerDown={(e) => {
@@ -338,7 +295,7 @@ export const HUD: React.FC<HUDProps> = ({
               onToggleMusic();
             }}
             aria-label="Música"
-            className={`p-2.5 rounded-xl border backdrop-blur-md shadow-md transition active:scale-95 touch-none select-none ${
+            className={`p-2 rounded-xl border backdrop-blur-md shadow-md transition active:scale-95 touch-none select-none ${
               isMusicOn
                 ? 'bg-emerald-600/80 border-emerald-400/50 text-white'
                 : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-white'
@@ -358,7 +315,7 @@ export const HUD: React.FC<HUDProps> = ({
               onOpenHelp();
             }}
             aria-label="Ayuda"
-            className="p-2.5 rounded-xl border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-md transition active:scale-95 touch-none select-none"
+            className="p-2 rounded-xl border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-md transition active:scale-95 touch-none select-none"
           >
             <HelpCircle className="w-4 h-4" />
           </button>
@@ -374,16 +331,57 @@ export const HUD: React.FC<HUDProps> = ({
               onOpenSettings();
             }}
             aria-label="Ajustes"
-            className="p-2.5 rounded-xl border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-md transition active:scale-95 touch-none select-none"
+            className="p-2 rounded-xl border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-md transition active:scale-95 touch-none select-none"
           >
             <Settings className="w-4 h-4" />
           </button>
         </div>
       </header>
 
+      {/* 1.1 MAYAN BOSS HEALTH BAR & STATUS */}
+      {currentDimension === 'mayan_boss' && bossState && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 w-[92%] max-w-md pointer-events-none z-15 flex flex-col items-center gap-1">
+          <div className={`w-full backdrop-blur-md border-2 rounded-2xl p-2.5 shadow-2xl flex flex-col gap-1.5 transition-all ${
+            bossState.isTired
+              ? 'bg-amber-950/90 border-amber-400/80 ring-2 ring-amber-400/40'
+              : 'bg-slate-950/90 border-emerald-500/60'
+          }`}>
+            <div className="flex items-center justify-between text-xs font-black">
+              <div className="flex items-center gap-1.5 text-emerald-400">
+                <span className="text-sm">🧟👑</span>
+                <span>Rey Zombi Maya</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-bold ${
+                bossState.isTired 
+                  ? 'bg-amber-400 text-slate-950 font-black animate-bounce shadow-md' 
+                  : bossState.phase === 'defeated'
+                  ? 'bg-emerald-500 text-slate-950'
+                  : 'bg-rose-950 border border-rose-500/50 text-rose-300'
+              }`}>
+                {bossState.statusMessage}
+              </span>
+            </div>
+            {/* Health Bar */}
+            <div className="w-full bg-slate-900 rounded-full h-4 border border-slate-700 overflow-hidden relative shadow-inner">
+              <div
+                className={`h-full transition-all duration-300 rounded-full ${
+                  bossState.isTired
+                    ? 'bg-gradient-to-r from-amber-400 to-yellow-300 animate-pulse'
+                    : 'bg-gradient-to-r from-rose-600 via-red-500 to-emerald-500'
+                }`}
+                style={{ width: `${Math.max(0, Math.min(100, (bossState.health / bossState.maxHealth) * 100))}%` }}
+              />
+              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white drop-shadow-md">
+                {bossState.health} / {bossState.maxHealth} HP {bossState.isTired ? '— ¡ATÁCALO AHORA!' : ''}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2. ACTIVE BUFFS CHIPS (Top left underneath status bar) */}
       {hasActiveBuffs && inventory && (
-        <div className="absolute top-16 left-3 flex flex-col gap-1.5 pointer-events-auto">
+        <div className="absolute top-20 left-3 flex flex-col gap-1.5 pointer-events-auto">
           {inventory.activeBuffs.speedTimeRemaining > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-950/80 border border-blue-400/50 backdrop-blur-md text-blue-300 text-xs font-bold shadow-lg">
               <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
@@ -440,6 +438,26 @@ export const HUD: React.FC<HUDProps> = ({
           >
             <span className="text-xl">✨</span>
             <span>Altar de Multiplicadores (1x a 6x) (Presiona E)</span>
+          </button>
+        </div>
+      )}
+
+      {/* 3.2 PROXIMITY MAYAN TEMPLE PROMPT BANNER */}
+      {isNearTemple && onEnterTemple && !isNearShop && !isNearMultiplierShop && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-auto z-20 transition-all animate-bounce">
+          <button
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onEnterTemple();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEnterTemple();
+            }}
+            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-500 to-amber-500 text-white font-black text-sm shadow-2xl border-2 border-emerald-300 hover:scale-105 active:scale-95 transition touch-none select-none"
+          >
+            <span className="text-xl">🏛️</span>
+            <span>Entrar al Templo Maya ({templeCost} Monedas) [E]</span>
           </button>
         </div>
       )}

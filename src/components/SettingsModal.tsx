@@ -221,6 +221,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
+            <div>
+              <div className="flex justify-between text-xs mb-1 text-slate-300">
+                <span>Sonido Ambiental (Bosque / Magia)</span>
+                <span>{Math.round((settings.ambientVolume ?? 0.5) * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={settings.ambientVolume ?? 0.5}
+                onChange={(e) => onUpdateSettings({ ambientVolume: parseFloat(e.target.value) })}
+                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400"
+              />
+            </div>
           </div>
 
           {/* 4. Controls & View */}

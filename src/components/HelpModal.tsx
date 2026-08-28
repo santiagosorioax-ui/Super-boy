@@ -45,6 +45,17 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
+          {/* Night Zombies & 5-Hit System */}
+          <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-3.5 flex items-start gap-3">
+            <span className="text-xl shrink-0 mt-0.5">🧟</span>
+            <div>
+              <span className="font-bold text-rose-300 block mb-0.5">Zombis Nocturnos & Sistema de Salud</span>
+              <p className="text-slate-300 leading-relaxed">
+                Los zombis solo salen de noche. Tienes <strong>5 puntos de vida (corazones)</strong>. Si un zombi te golpea 5 veces seguidas, caerás derrotado, perderás algunas monedas y podrás pulsar <strong>Reintentar</strong> para reaparecer de inmediato en la Plaza central.
+              </p>
+            </div>
+          </div>
+
           {/* PC Controls */}
           <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5">
             <div className="flex items-center gap-2 font-bold text-slate-200 mb-2.5">

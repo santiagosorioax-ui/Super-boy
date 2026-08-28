@@ -26,6 +26,7 @@ export interface ZombieEntity {
   state: 'idle' | 'wander' | 'chase' | 'hurt';
   hitFlashTimer: number;
   groanTimer: number;
+  attackCooldown: number;
   dimension: 'main' | 'candy';
   walkCycle: number;
   isSugarZombie?: boolean;
@@ -345,6 +346,7 @@ export class ZombieSystem {
       state: 'wander',
       hitFlashTimer: 0,
       groanTimer: 2 + Math.random() * 7,
+      attackCooldown: 0,
       dimension,
       walkCycle: Math.random() * 10,
       isSugarZombie,
@@ -445,7 +447,10 @@ export class ZombieSystem {
         z.limbs.healthBarMesh.rotation.y = lookAngle;
       }
 
-      // 4. Groan Sound
+      // 4. Attack Cooldown & Groan Sound
+      if (z.attackCooldown > 0) {
+        z.attackCooldown -= dt;
+      }
       z.groanTimer -= dt;
       if (z.groanTimer <= 0) {
         z.groanTimer = 5 + Math.random() * 8;
@@ -473,13 +478,15 @@ export class ZombieSystem {
 
         moveSpeed = z.isSugarZombie ? 3.8 : 3.2;
 
-        // Attack Player Check
-        if (distSq < hitPlayerRadiusSq && Math.abs(playerPos.y - z.pos.y) < 1.7) {
+        // Attack Player Check with cooldown
+        if (distSq < hitPlayerRadiusSq && Math.abs(playerPos.y - z.pos.y) < 1.7 && z.attackCooldown <= 0) {
+          z.attackCooldown = 1.35; // 1.35s between hits from this zombie
           const knockDir = new THREE.Vector3(dx, 0, dz).normalize();
+          if (knockDir.lengthSq() < 0.001) knockDir.set(0, 0, 1);
           onPlayerAttack(knockDir, !!z.isSugarZombie);
           soundEngine.playZombieHitSound();
-          z.vel.x = -knockDir.x * 3.5;
-          z.vel.z = -knockDir.z * 3.5;
+          z.vel.x = -knockDir.x * 4.0;
+          z.vel.z = -knockDir.z * 4.0;
         }
       } else {
         // WANDER MODE
@@ -622,23 +629,12 @@ export class ZombieSystem {
     z.vel.z += knockDir.z * 8.5;
 
     soundEngine.playZombieHitSound();
-    this.spawnParticlesCallback?.(
-      z.pos.clone().add(new THREE.Vector3(0, 1.2, 0)),
-      z.isSugarZombie ? 0xf43f5e : 0xeab308,
-      18
-    );
 
     if (z.health <= 0) {
       // Zombie Defeated!
       z.isDead = true;
       z.respawnTimer = 3.5 + Math.random() * 3.0; // Fast dynamic respawn across the map!
       z.mesh.visible = false;
-
-      this.spawnParticlesCallback?.(
-        z.pos.clone().add(new THREE.Vector3(0, 1, 0)),
-        z.isSugarZombie ? 0xec4899 : 0xf59e0b,
-        35
-      );
 
       // Spawn Coins/Gems
       this.spawnCoinCallback?.(z.pos.clone().add(new THREE.Vector3(0.5, 0.8, 0)), 'gold');

@@ -6,15 +6,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameWorld } from './game/GameWorld';
 import { soundEngine } from './audio/soundEngine';
-import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension } from './types';
+import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier } from './types';
 import { HUD } from './components/HUD';
 import { SettingsModal } from './components/SettingsModal';
 import { VictoryModal } from './components/VictoryModal';
 import { HelpModal } from './components/HelpModal';
 import { ShopModal } from './components/ShopModal';
 import { MultiplierShopModal } from './components/MultiplierShopModal';
+import { DeathModal } from './components/DeathModal';
 import { StartScreen } from './components/StartScreen';
-import { MultiplierTier } from './types';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -48,8 +48,13 @@ export default function App() {
   const [isNearShop, setIsNearShop] = useState(false);
   const [isMultiplierShopOpen, setIsMultiplierShopOpen] = useState(false);
   const [isNearMultiplierShop, setIsNearMultiplierShop] = useState(false);
+  const [isNearTemple, setIsNearTemple] = useState(false);
+  const [templeCost, setTempleCost] = useState(500);
+  const [bossState, setBossState] = useState<MayanBossState | null>(null);
   const [inventory, setInventory] = useState<PlayerInventory>({
     coins: 0,
+    health: 5,
+    maxHealth: 5,
     ownedSwordIds: [],
     equippedSwordId: null,
     playerMultiplier: 1,
@@ -71,11 +76,14 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVictoryOpen, setIsVictoryOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isDeathModalOpen, setIsDeathModalOpen] = useState(false);
+  const [coinsLostOnDeath, setCoinsLostOnDeath] = useState(0);
 
   // Settings
   const [settings, setSettings] = useState<GameSettings>({
     musicVolume: 0.4,
     sfxVolume: 0.7,
+    ambientVolume: 0.5,
     mouseSensitivity: 1.5,
     fov: 100,
     cycleSpeed: 'normal',
@@ -131,6 +139,7 @@ export default function App() {
       },
       onTimeUpdate: (newTimeState: TimeState) => {
         setTimeState(newTimeState);
+        soundEngine.setNightMood(newTimeState.period === 'night' || newTimeState.period === 'sunset');
       },
       onJump: () => {
         // Jump triggered
@@ -153,6 +162,27 @@ export default function App() {
       onOpenMultiplierShop: () => {
         setIsMultiplierShopOpen(true);
       },
+      onNearTemple: (near: boolean, cost: number) => {
+        setIsNearTemple(near);
+        setTempleCost(cost);
+      },
+      onSpendCoins: (amount: number) => {
+        if (inventoryRef.current.coins >= amount) {
+          setInventory((prev) => ({ ...prev, coins: prev.coins - amount }));
+          return true;
+        }
+        return false;
+      },
+      onAddCoins: (amount: number) => {
+        setScore((prev) => prev + amount);
+        setInventory((prev) => ({ ...prev, coins: prev.coins + amount }));
+      },
+      onBossStateUpdate: (state: MayanBossState) => {
+        setBossState(state);
+      },
+      onToast: (msg: string) => {
+        showToast(msg);
+      },
       onBuffsUpdate: (buffs) => {
         setInventory((prev) => ({
           ...prev,
@@ -166,8 +196,11 @@ export default function App() {
       },
       onWorldChange: (newWorld) => {
         setCurrentDimension(newWorld);
+        soundEngine.setDimension(newWorld);
         if (newWorld === 'candy') {
           showToast('🍭 ¡Bienvenido al Mundo de Caramelo!');
+        } else if (newWorld === 'mayan_boss') {
+          showToast('🏛️ ¡Entraste a la Cripta Maya! ¡Derrota al Rey Zombi!');
         } else {
           showToast('🌿 Regresaste al Valle Principal');
         }
@@ -180,6 +213,16 @@ export default function App() {
       },
       onPlayerHurt: (message) => {
         showToast(`💥 ${message}`);
+      },
+      onPlayerHealthUpdate: (health, maxHealth) => {
+        setInventory((prev) => ({ ...prev, health, maxHealth }));
+      },
+      onPlayerDied: () => {
+        const currentCoins = inventoryRef.current.coins;
+        // Lose 20% of coins or at least 5 coins if player has coins
+        const lost = currentCoins > 0 ? Math.max(1, Math.floor(currentCoins * 0.25)) : 0;
+        setCoinsLostOnDeath(lost);
+        setIsDeathModalOpen(true);
       },
       onVictory: () => {
         setIsVictoryOpen(true);
@@ -225,6 +268,7 @@ export default function App() {
       window.removeEventListener('pointerdown', onFirstInteract);
       window.removeEventListener('keydown', onFirstInteract);
       soundEngine.stopMusic();
+      soundEngine.stopAmbient();
       world.destroy();
     };
   }, [showToast]);
@@ -241,6 +285,7 @@ export default function App() {
     soundEngine.init();
     soundEngine.resume();
     soundEngine.playGameStartSound();
+    soundEngine.startAmbient();
     if (isMusicOn) {
       soundEngine.startMusic();
     }
@@ -382,6 +427,12 @@ export default function App() {
 
   // Handle Buy Multiplier Tier
   const handleBuyMultiplier = (tier: MultiplierTier) => {
+    if (tier.world === 'candy' && currentDimension !== 'candy') {
+      soundEngine.playShopBuyFail();
+      showToast('🔒 ¡Debes cruzar el Portal al Mundo de Caramelo para comprar este multiplicador!');
+      return;
+    }
+
     if (inventory.coins < tier.price) {
       soundEngine.playShopBuyFail();
       showToast('❌ ¡No tienes suficientes monedas para este multiplicador!');
@@ -421,6 +472,9 @@ export default function App() {
     if (newSettings.sfxVolume !== undefined) {
       soundEngine.setSfxVolume(newSettings.sfxVolume);
     }
+    if (newSettings.ambientVolume !== undefined) {
+      soundEngine.setAmbientVolume(newSettings.ambientVolume);
+    }
     if (newSettings.cycleSpeed !== undefined && worldRef.current) {
       worldRef.current.setCycleSpeed(newSettings.cycleSpeed);
     }
@@ -454,6 +508,25 @@ export default function App() {
       showToast('🏠 ¡Teletransportado al Inicio!');
     }
   }, [showToast]);
+
+  // Handle Death Retry & Respawn
+  const handleRetryRespawn = useCallback(() => {
+    const lost = coinsLostOnDeath;
+    setInventory((prev) => ({
+      ...prev,
+      coins: Math.max(0, prev.coins - lost),
+      health: 5,
+    }));
+    if (worldRef.current) {
+      worldRef.current.respawnPlayer();
+    }
+    setIsDeathModalOpen(false);
+    if (lost > 0) {
+      showToast(`💀 ¡Has revivido en la Plaza! Perdiste ${lost} monedas.`);
+    } else {
+      showToast('💀 ¡Has revivido en la Plaza con salud completa!');
+    }
+  }, [coinsLostOnDeath, showToast]);
 
   // --- TOUCH JOYSTICK EVENTS ---
   const handleJoyTouchStart = (e: React.TouchEvent) => {
@@ -594,6 +667,10 @@ export default function App() {
           radar={settings.showCompass ? radar : null}
           isNearShop={isNearShop}
           isNearMultiplierShop={isNearMultiplierShop}
+          isNearTemple={isNearTemple}
+          templeCost={templeCost}
+          onEnterTemple={() => worldRef.current?.tryEnterMayanTemple()}
+          bossState={bossState}
           inventory={inventory}
           currentDimension={currentDimension}
           zombiesDefeated={zombiesDefeated}
@@ -662,6 +739,14 @@ export default function App() {
       <HelpModal
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
+      />
+
+      {/* Death / Game Over Modal with Reintentar button */}
+      <DeathModal
+        isOpen={isDeathModalOpen}
+        coinsLost={coinsLostOnDeath}
+        remainingCoins={Math.max(0, inventory.coins - coinsLostOnDeath)}
+        onRetry={handleRetryRespawn}
       />
     </div>
   );

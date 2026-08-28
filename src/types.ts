@@ -1,8 +1,18 @@
-export type WorldDimension = 'main' | 'candy';
+export type WorldDimension = 'main' | 'candy' | 'mayan_boss';
+
+export interface MayanBossState {
+  active: boolean;
+  health: number;
+  maxHealth: number;
+  phase: 'intro' | 'attacking' | 'tired' | 'defeated';
+  tiredTimeRemaining: number;
+  isInvulnerable: boolean;
+}
 
 export interface GameSettings {
   musicVolume: number;
   sfxVolume: number;
+  ambientVolume?: number;
   mouseSensitivity: number;
   fov: number;
   cycleSpeed: 'normal' | 'fast' | 'slow' | 'freeze_day' | 'freeze_night';
@@ -38,6 +48,7 @@ export interface MultiplierTier {
   icon: string;
   color: string;
   badge?: string;
+  world?: WorldDimension;
 }
 
 export interface PlayerBuffs {

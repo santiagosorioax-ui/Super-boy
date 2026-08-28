@@ -10,6 +10,7 @@ export const VALLEY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '🪙',
     color: '#94a3b8',
     badge: 'Base / Gratis',
+    world: 'main',
   },
   {
     multiplier: 2,
@@ -19,6 +20,7 @@ export const VALLEY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '⚡',
     color: '#38bdf8',
     badge: '2x Ganancias',
+    world: 'main',
   },
   {
     multiplier: 3,
@@ -28,6 +30,7 @@ export const VALLEY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '🔥',
     color: '#f59e0b',
     badge: '3x Ganancias',
+    world: 'main',
   },
   {
     multiplier: 4,
@@ -37,6 +40,7 @@ export const VALLEY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '💎',
     color: '#a855f7',
     badge: '4x Ganancias',
+    world: 'main',
   },
   {
     multiplier: 5,
@@ -46,6 +50,7 @@ export const VALLEY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '👑',
     color: '#ec4899',
     badge: '5x Ganancias',
+    world: 'main',
   },
   {
     multiplier: 6,
@@ -55,6 +60,7 @@ export const VALLEY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '🌟',
     color: '#10b981',
     badge: '6x Valle MAX',
+    world: 'main',
   },
 ];
 
@@ -68,6 +74,7 @@ export const CANDY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '🍬',
     color: '#f43f5e',
     badge: '7x Dulce',
+    world: 'candy',
   },
   {
     multiplier: 8,
@@ -77,6 +84,7 @@ export const CANDY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '🍭',
     color: '#fb7185',
     badge: '8x Cósmico',
+    world: 'candy',
   },
   {
     multiplier: 9,
@@ -86,6 +94,7 @@ export const CANDY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '🌀',
     color: '#e879f9',
     badge: '9x Legendario',
+    world: 'candy',
   },
   {
     multiplier: 10,
@@ -95,6 +104,7 @@ export const CANDY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '✨',
     color: '#c084fc',
     badge: '10x Galáctico',
+    world: 'candy',
   },
   {
     multiplier: 11,
@@ -104,6 +114,7 @@ export const CANDY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '🧁',
     color: '#38bdf8',
     badge: '11x Místico',
+    world: 'candy',
   },
   {
     multiplier: 12,
@@ -113,6 +124,7 @@ export const CANDY_MULTIPLIER_TIERS: MultiplierTier[] = [
     icon: '👑',
     color: '#facc15',
     badge: '12x SUPREMO',
+    world: 'candy',
   },
 ];
 

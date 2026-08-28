@@ -141,20 +141,32 @@ export const MultiplierShopModal: React.FC<MultiplierShopModalProps> = ({
               onClick={() => setActiveTab('candy')}
               className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
                 activeTab === 'candy'
-                  ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-md shadow-pink-900/40 border border-pink-400/50 animate-pulse'
+                  ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-md shadow-pink-900/40 border border-pink-400/50'
                   : 'bg-slate-800/70 text-slate-400 hover:text-slate-200 border border-slate-700'
               }`}
             >
               <span>🍬</span>
               <span>Mundo Caramelo (7x - 12x)</span>
-              <span className="px-1.5 py-0.2 bg-amber-400 text-slate-950 text-[9px] font-black rounded-full uppercase">Nuevo</span>
+              {currentDimension !== 'candy' && (
+                <span className="px-1.5 py-0.2 bg-slate-800 text-slate-400 text-[9px] font-bold rounded-full border border-slate-700">🔒 Portal</span>
+              )}
             </button>
           </div>
 
           <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
-            <span>Mundo actual: <strong className="text-amber-300">{currentDimension === 'candy' ? '🍬 Caramelo' : '🌲 Valle'}</strong></span>
+            <span>Ubicación: <strong className="text-amber-300">{currentDimension === 'candy' ? '🍬 Mundo Caramelo' : '🌲 Valle Principal'}</strong></span>
           </div>
         </div>
+
+        {/* Candy World Lock Warning if in Valley */}
+        {activeTab === 'candy' && currentDimension !== 'candy' && (
+          <div className="px-4 py-2 bg-amber-950/70 border-b border-amber-500/40 text-amber-200 text-xs flex items-center gap-2">
+            <span className="text-base">🔒</span>
+            <span>
+              <strong>¡Solo disponible en Mundo de Caramelo!</strong> Para desbloquear estos multiplicadores (7x a 12x), cruza el <strong>Portal dimensional</strong> en el mapa.
+            </span>
+          </div>
+        )}
 
         {/* Current Multiplier Status Banner */}
         <div className="px-4 py-2 bg-gradient-to-r from-purple-950/40 via-indigo-950/40 to-slate-950/60 border-b border-purple-500/20 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -179,7 +191,8 @@ export const MultiplierShopModal: React.FC<MultiplierShopModalProps> = ({
             {displayedTiers.map((tier) => {
               const isUnlocked = unlocked.includes(tier.multiplier);
               const isActive = currentMultiplier === tier.multiplier;
-              const canAfford = inventory.coins >= tier.price;
+              const isDimensionLocked = tier.world === 'candy' && currentDimension !== 'candy' && !isUnlocked;
+              const canAfford = inventory.coins >= tier.price && !isDimensionLocked;
 
               return (
                 <div
@@ -190,6 +203,8 @@ export const MultiplierShopModal: React.FC<MultiplierShopModalProps> = ({
                       ? 'bg-gradient-to-br from-purple-950/60 via-slate-800/90 to-indigo-950/80 border-purple-400 shadow-xl shadow-purple-500/20 ring-1 ring-purple-400/50'
                       : isUnlocked
                       ? 'bg-slate-800/60 border-slate-700 hover:border-purple-500/50'
+                      : isDimensionLocked
+                      ? 'bg-slate-900/50 border-slate-800/80 opacity-75'
                       : 'bg-slate-850/40 border-slate-800 hover:border-slate-700'
                   }`}
                 >
@@ -197,12 +212,12 @@ export const MultiplierShopModal: React.FC<MultiplierShopModalProps> = ({
                   <span
                     className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm"
                     style={{
-                      backgroundColor: `${tier.color}22`,
-                      borderColor: `${tier.color}66`,
-                      color: tier.color,
+                      backgroundColor: isDimensionLocked ? '#33415555' : `${tier.color}22`,
+                      borderColor: isDimensionLocked ? '#47556988' : `${tier.color}66`,
+                      color: isDimensionLocked ? '#94a3b8' : tier.color,
                     }}
                   >
-                    {tier.badge || `${tier.multiplier}x Multiplicador`}
+                    {isDimensionLocked ? '🔒 Bloqueado en Valle' : tier.badge || `${tier.multiplier}x Multiplicador`}
                   </span>
 
                   {/* Icon & Title */}
@@ -210,8 +225,8 @@ export const MultiplierShopModal: React.FC<MultiplierShopModalProps> = ({
                     <div
                       className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-md border"
                       style={{
-                        backgroundColor: `${tier.color}20`,
-                        borderColor: `${tier.color}55`,
+                        backgroundColor: isDimensionLocked ? '#1e293b66' : `${tier.color}20`,
+                        borderColor: isDimensionLocked ? '#33415588' : `${tier.color}55`,
                       }}
                     >
                       {getTierIconComponent(tier.multiplier)}
@@ -275,6 +290,15 @@ export const MultiplierShopModal: React.FC<MultiplierShopModalProps> = ({
                           className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-900/40 transition active:scale-95 flex items-center gap-1"
                         >
                           <span>⚡ Equipar {tier.multiplier}x</span>
+                        </button>
+                      ) : isDimensionLocked ? (
+                        <button
+                          type="button"
+                          disabled
+                          title="Cruza el Portal al Mundo de Caramelo para comprar este multiplicador"
+                          className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800/80 text-amber-300/70 border border-slate-700 flex items-center gap-1 cursor-not-allowed"
+                        >
+                          <span>🔒 Solo en Mundo Caramelo</span>
                         </button>
                       ) : (
                         <button
