@@ -1046,6 +1046,33 @@ class SoundEngine {
     osc.stop(t + 0.24);
   }
 
+  public playZombieHurtSound() {
+    this.playZombieHitSound();
+  }
+
+  public playZombieDeathSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.35);
+
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 0.4);
+  }
+
   public playPortalTeleportSound() {
     this.init();
     this.resume();

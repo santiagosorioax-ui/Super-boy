@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { soundEngine } from '../audio/soundEngine';
+import { WorldDimension } from '../types';
 
 export interface ZombieEntity {
   id: number;
@@ -359,10 +360,11 @@ export class ZombieSystem {
   public update(
     dt: number,
     playerPos: THREE.Vector3,
-    currentDimension: 'main' | 'candy',
+    currentDimension: WorldDimension,
     isNight: boolean,
     onPlayerAttack: (knockDir: THREE.Vector3, isSugarZombie: boolean) => void
   ) {
+    if (currentDimension === 'mayan_boss') return;
     // 1. Day / Night Transition Handling
     if (this.isNightActive !== isNight) {
       this.isNightActive = isNight;
@@ -570,9 +572,9 @@ export class ZombieSystem {
     playerPos: THREE.Vector3,
     lookDir: THREE.Vector3,
     damage: number,
-    currentDimension: 'main' | 'candy'
+    currentDimension: WorldDimension
   ): boolean {
-    if (!this.isNightActive) return false;
+    if (!this.isNightActive || currentDimension === 'mayan_boss') return false;
     let hitAny = false;
     const hitRange = 3.6;
 
@@ -599,9 +601,9 @@ export class ZombieSystem {
   public checkPlayerStomp(
     playerPos: THREE.Vector3,
     playerVelY: number,
-    currentDimension: 'main' | 'candy'
+    currentDimension: WorldDimension
   ): boolean {
-    if (!this.isNightActive || playerVelY > -0.2) return false;
+    if (!this.isNightActive || playerVelY > -0.2 || currentDimension === 'mayan_boss') return false;
 
     for (const z of this.zombies) {
       if (z.isDead || z.dimension !== currentDimension) continue;
