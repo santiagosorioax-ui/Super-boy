@@ -2671,13 +2671,6 @@ export class GameWorld {
   public tryEnterMayanTemple(): boolean {
     if (this.currentWorld === 'mayan_boss') return false;
 
-    if (this.freeTemplePass) {
-      soundEngine.playTempleGateOpenSound();
-      this.teleportToWorld('mayan_boss');
-      this.callbacks.onToast?.('👑 ¡Pase VIP Maya! Acceso gratuito a la Cripta Maya');
-      return true;
-    }
-
     const hasPaid = this.callbacks.onSpendCoins ? this.callbacks.onSpendCoins(500) : false;
     if (!hasPaid) {
       soundEngine.playBossShieldDeflectSound();

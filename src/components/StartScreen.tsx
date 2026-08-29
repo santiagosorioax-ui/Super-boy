@@ -13,36 +13,44 @@ import {
   VolumeX,
   Compass,
   Trophy,
-  Crown,
   Monitor,
-  Smartphone
+  Smartphone,
+  LogIn,
+  LogOut,
+  User as UserIcon,
+  CloudCheck
 } from 'lucide-react';
-import { GameSettings, UserProfile, ControlDevice } from '../types';
+import { GameSettings, ControlDevice } from '../types';
+import { User } from 'firebase/auth';
 
 interface StartScreenProps {
   onPlay: (mode?: ControlDevice) => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
+  onOpenLeaderboard?: () => void;
   settings: GameSettings;
   onUpdateSettings: (newSettings: Partial<GameSettings>) => void;
   isMusicOn: boolean;
   onToggleMusic: () => void;
   bestScore?: number;
-  userProfile?: UserProfile;
-  onOpenUserProfile?: () => void;
+  currentUser?: User | null;
+  onSignInGoogle?: () => void;
+  onSignOut?: () => void;
 }
 
 export const StartScreen: React.FC<StartScreenProps> = ({
   onPlay,
   onOpenSettings,
   onOpenHelp,
+  onOpenLeaderboard,
   settings,
   onUpdateSettings,
   isMusicOn,
   onToggleMusic,
   bestScore = 0,
-  userProfile,
-  onOpenUserProfile,
+  currentUser,
+  onSignInGoogle,
+  onSignOut,
 }) => {
   return (
     <div 
@@ -57,26 +65,52 @@ export const StartScreen: React.FC<StartScreenProps> = ({
         <div className="absolute -top-10 -left-6 w-24 h-24 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -bottom-10 -right-6 w-32 h-32 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Badges */}
+        {/* Top Badges & Auth Section */}
         <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
-          {userProfile && (
-            <button
-              onClick={onOpenUserProfile}
-              className="flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/30 via-yellow-500/30 to-purple-500/30 border border-amber-400/70 text-amber-200 text-xs font-black tracking-wide hover:scale-105 transition shadow-lg shadow-amber-950/50 cursor-pointer"
-            >
-              <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>VIP: {userProfile.username} (Sin Límites)</span>
-            </button>
-          )}
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold tracking-wide">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>Mundo Abierto 3D</span>
           </div>
+
           {bestScore > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
               <Trophy className="w-3.5 h-3.5 text-emerald-400" />
               <span>Récord: {bestScore} pts</span>
             </div>
+          )}
+
+          {/* Firebase User Auth Status */}
+          {currentUser ? (
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-200 text-xs">
+              {currentUser.photoURL ? (
+                <img
+                  src={currentUser.photoURL}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className="w-4 h-4 rounded-full border border-amber-400/60"
+                />
+              ) : (
+                <UserIcon className="w-3.5 h-3.5 text-amber-400" />
+              )}
+              <span className="font-semibold max-w-[100px] sm:max-w-[140px] truncate">
+                {currentUser.displayName || currentUser.email}
+              </span>
+              <button
+                onClick={onSignOut}
+                title="Cerrar sesión"
+                className="text-slate-400 hover:text-rose-400 p-0.5 ml-1 transition"
+              >
+                <LogOut className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onSignInGoogle}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600/30 hover:bg-blue-600/50 border border-blue-400/50 text-blue-200 text-xs font-semibold hover:scale-105 transition cursor-pointer"
+            >
+              <LogIn className="w-3.5 h-3.5 text-blue-400" />
+              <span>Guardar en Nube (Google)</span>
+            </button>
           )}
         </div>
 
@@ -169,6 +203,17 @@ export const StartScreen: React.FC<StartScreenProps> = ({
 
         {/* Quick Settings & Preference Bar */}
         <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-2 shadow-lg">
+          {/* Leaderboard Button */}
+          <button
+            id="start-btn-leaderboard"
+            onClick={onOpenLeaderboard}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-bold text-amber-300 transition"
+            title="Ranking y Clasificación"
+          >
+            <Trophy className="w-3.5 h-3.5 text-amber-400" />
+            <span>Ranking</span>
+          </button>
+
           {/* View Mode Toggle */}
           <button
             id="start-toggle-view"

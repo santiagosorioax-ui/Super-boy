@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account profile and persistent game save state",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Auth UID of the user",
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the player",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Player email",
+          "maxLength": 200
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Profile avatar URL",
+          "maxLength": 500
+        },
+        "bestScore": {
+          "type": "number",
+          "description": "Highest score achieved"
+        },
+        "coins": {
+          "type": "number",
+          "description": "Saved coins count"
+        },
+        "equippedSwordId": {
+          "type": "string",
+          "description": "ID of the equipped sword",
+          "maxLength": 50
+        },
+        "ownedSwordIds": {
+          "type": "array",
+          "description": "List of owned sword IDs"
+        },
+        "playerMultiplier": {
+          "type": "number",
+          "description": "Active coin multiplier"
+        },
+        "unlockedMultipliers": {
+          "type": "array",
+          "description": "Unlocked multiplier tiers"
+        },
+        "zombiesDefeated": {
+          "type": "number",
+          "description": "Total zombies defeated"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last save timestamp"
+        }
+      },
+      "required": ["userId", "displayName", "bestScore", "coins", "playerMultiplier"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public high score leaderboard record",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Auth UID of player",
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Player nickname or name",
+          "maxLength": 100
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Player avatar URL",
+          "maxLength": 500
+        },
+        "bestScore": {
+          "type": "number",
+          "description": "Highest score record"
+        },
+        "coins": {
+          "type": "number",
+          "description": "Total coins collected"
+        },
+        "zombiesDefeated": {
+          "type": "number",
+          "description": "Total zombies defeated"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of record"
+        }
+      },
+      "required": ["userId", "displayName", "bestScore"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private user game save state and profile data"
+    },
+    "/leaderboard/{userId}": {
+      "schema": "LeaderboardEntry",
+      "description": "Public leaderboard records per user"
+    }
+  }
+}

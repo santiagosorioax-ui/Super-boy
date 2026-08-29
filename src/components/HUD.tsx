@@ -20,11 +20,16 @@ import {
   Home,
   Heart,
   Shirt,
-  Crown,
   Monitor,
-  Smartphone
+  Smartphone,
+  Trophy,
+  LogIn,
+  LogOut,
+  User as UserIcon,
+  Cloud
 } from 'lucide-react';
-import { TimeState, PlayerInventory, WorldDimension, MayanBossState, UserProfile, ControlDevice } from '../types';
+import { TimeState, PlayerInventory, WorldDimension, MayanBossState, ControlDevice } from '../types';
+import { User } from 'firebase/auth';
 
 interface HUDProps {
   score: number;
@@ -50,8 +55,10 @@ interface HUDProps {
   inventory?: PlayerInventory;
   currentDimension?: WorldDimension;
   zombiesDefeated?: number;
-  userProfile?: UserProfile;
-  onOpenUserProfile?: () => void;
+  currentUser?: User | null;
+  onSignInGoogle?: () => void;
+  onSignOut?: () => void;
+  onOpenLeaderboard?: () => void;
   onToggleMusic: () => void;
   onToggleFlashlight: () => void;
   onToggleViewMode: () => void;
@@ -99,8 +106,10 @@ export const HUD: React.FC<HUDProps> = ({
   inventory,
   currentDimension = 'main',
   zombiesDefeated = 0,
-  userProfile,
-  onOpenUserProfile,
+  currentUser,
+  onSignInGoogle,
+  onSignOut,
+  onOpenLeaderboard,
   onToggleMusic,
   onToggleFlashlight,
   onToggleViewMode,
@@ -281,26 +290,63 @@ export const HUD: React.FC<HUDProps> = ({
           )}
         </div>
 
-        {/* Right: Quick Action Controls (Sound, Outfits, Help, Settings) */}
+        {/* Right: Quick Action Controls (Sound, Outfits, Leaderboard, Help, Settings) */}
         <div className="flex items-center gap-1.5">
-          {/* VIP Admin User Profile Button */}
-          {userProfile && (
+          {/* Google Auth Status / Cloud Save */}
+          {currentUser ? (
+            <div
+              id="hud-user-profile"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/80 backdrop-blur-md shadow-md text-slate-200 text-xs"
+              title={`Conectado como ${currentUser.displayName || currentUser.email} (Progreso guardado en Firebase)`}
+            >
+              {currentUser.photoURL ? (
+                <img
+                  src={currentUser.photoURL}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className="w-4 h-4 rounded-full border border-emerald-400/70"
+                />
+              ) : (
+                <UserIcon className="w-3.5 h-3.5 text-amber-400" />
+              )}
+              <span className="font-semibold text-[11px] max-w-[90px] truncate text-slate-200">
+                {currentUser.displayName?.split(' ')[0] || 'Jugador'}
+              </span>
+              <Cloud className="w-3 h-3 text-emerald-400" />
+            </div>
+          ) : (
             <button
-              id="hud-btn-user-profile"
+              id="hud-btn-signin"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenUserProfile?.();
+                onSignInGoogle?.();
               }}
-              aria-label="Perfil VIP Ilimitado"
-              title="Cuenta VIP de Santiago (Modo Dios / Monedas Infinitas)"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/30 border border-amber-300 active:scale-95 transition-all"
+              title="Guardar partida en Firebase con Google"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-600/80 hover:bg-blue-500 border border-blue-400/60 text-white font-bold text-xs shadow-md transition active:scale-95 touch-none select-none"
             >
-              <Crown className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">VIP</span>
-              <span className="text-[10px] bg-slate-950 text-amber-300 px-1.5 py-0.5 rounded-md font-mono">∞</span>
+              <LogIn className="w-3.5 h-3.5 text-blue-200" />
+              <span className="hidden sm:inline text-[11px]">Guardar</span>
             </button>
           )}
+
+          {/* Leaderboard High Scores Button */}
+          <button
+            id="hud-btn-leaderboard"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onOpenLeaderboard?.();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenLeaderboard?.();
+            }}
+            aria-label="Ranking Global"
+            title="Ranking de Mejores Jugadores"
+            className="p-2 rounded-xl border border-amber-500/40 bg-amber-950/80 hover:bg-amber-900/80 backdrop-blur-md text-amber-300 hover:text-amber-100 shadow-md transition active:scale-95 touch-none select-none"
+          >
+            <Trophy className="w-4 h-4 text-amber-400" />
+          </button>
 
           {/* Control Mode Toggle Button (PC vs Celular) */}
           <button
