@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameWorld } from './game/GameWorld';
 import { soundEngine } from './audio/soundEngine';
-import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier, ControlDevice } from './types';
+import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier, ControlDevice, UserProfile } from './types';
 import { HUD } from './components/HUD';
 import { SettingsModal } from './components/SettingsModal';
 import { VictoryModal } from './components/VictoryModal';
@@ -16,9 +16,12 @@ import { MultiplierShopModal } from './components/MultiplierShopModal';
 import { DeathModal } from './components/DeathModal';
 import { StartScreen } from './components/StartScreen';
 import { LeaderboardModal } from './components/LeaderboardModal';
+import { VipProfileModal } from './components/VipProfileModal';
 import { auth, googleProvider } from './firebase/config';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { saveUserProgress, loadUserProgress } from './firebase/gameSync';
+
+const VIP_GMAIL = 'santiagosorioax@gmail.com';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -27,6 +30,21 @@ export default function App() {
   // Firebase Auth user state
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const [isVipModalOpen, setIsVipModalOpen] = useState(false);
+  const isVip = currentUser?.email?.toLowerCase() === VIP_GMAIL.toLowerCase();
+
+  const [vipProfile, setVipProfile] = useState<UserProfile>({
+    email: VIP_GMAIL,
+    username: 'Santiago VIP',
+    role: 'admin_unlimited',
+    isUnlimited: true,
+    infiniteCoins: true,
+    isGodMode: true,
+    superSpeed: true,
+    superJump: true,
+    superMagnet: true,
+    freeTemplePass: true,
+  });
 
   // Game state & Device Mode
   const isMobileDevice = typeof window !== 'undefined' && (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
@@ -126,11 +144,41 @@ export default function App() {
     }, 2800);
   }, []);
 
+  // Apply VIP Perks for Santiago (santiagosorioax@gmail.com)
+  const applyVipPerks = useCallback(() => {
+    setInventory((prev) => ({
+      ...prev,
+      coins: 999999999,
+      ownedSwordIds: ['wood_sword', 'neon_katana', 'fire_greatsword', 'god_blade'],
+      equippedSwordId: 'god_blade',
+      playerMultiplier: 1000,
+      unlockedMultipliers: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000],
+      isGodMode: true,
+    }));
+    if (worldRef.current) {
+      worldRef.current.setUnlimitedPowers({
+        isGodMode: true,
+        superSpeed: true,
+        superJump: true,
+        superMagnet: true,
+        freeTemplePass: true,
+      });
+      worldRef.current.setEquippedSword('god_blade');
+    }
+    showToast('👑 ¡Bienvenido Santiago! Modo VIP Activado (999M Monedas & Sin Límites)');
+  }, [showToast]);
+
   // Listen to Firebase Auth State Changes & Load User Save Data
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
+        const isUserVip = user.email?.toLowerCase() === VIP_GMAIL.toLowerCase();
+        if (isUserVip) {
+          applyVipPerks();
+          return;
+        }
+
         try {
           const saved = await loadUserProgress(user.uid);
           if (saved) {
@@ -158,7 +206,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [showToast]);
+  }, [applyVipPerks, showToast]);
 
   // Handle Google Sign In
   const handleSignInGoogle = async () => {
@@ -568,6 +616,61 @@ export default function App() {
     showToast(`⚡ Multiplicador ${mult}x activado`);
   };
 
+  // VIP Action Handlers for Santiago (santiagosorioax@gmail.com)
+  const handleUpdateVipProfile = (updated: UserProfile) => {
+    setVipProfile(updated);
+    if (worldRef.current) {
+      worldRef.current.setUnlimitedPowers({
+        isGodMode: updated.isGodMode,
+        superSpeed: updated.superSpeed,
+        superJump: updated.superJump,
+        superMagnet: updated.superMagnet,
+        freeTemplePass: updated.freeTemplePass,
+      });
+    }
+    showToast('✨ Superpoderes VIP actualizados');
+  };
+
+  const handleRefillInfiniteCoins = () => {
+    setInventory((prev) => ({
+      ...prev,
+      coins: 999999999,
+    }));
+    soundEngine.playCoinSound();
+    showToast('🪙 +999,999,999 Monedas Infinitas asignadas');
+  };
+
+  const handleUnlockAllSwords = () => {
+    setInventory((prev) => ({
+      ...prev,
+      ownedSwordIds: ['wood_sword', 'neon_katana', 'fire_greatsword', 'god_blade'],
+      equippedSwordId: 'god_blade',
+    }));
+    if (worldRef.current) {
+      worldRef.current.setEquippedSword('god_blade');
+    }
+    soundEngine.playEquipSound();
+    showToast('🗡️ ¡Todas las espadas desbloqueadas y Hoja de Dios equipada!');
+  };
+
+  const handleUnlockAllMultipliers = () => {
+    setInventory((prev) => ({
+      ...prev,
+      unlockedMultipliers: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000],
+      playerMultiplier: 1000,
+    }));
+    soundEngine.playShopBuySuccess();
+    showToast('⚡ ¡Multiplicador 1000x activado!');
+  };
+
+  const handleTeleportTo = (dest: 'spawn' | 'shop' | 'multiplier_shop' | 'candy_portal' | 'mayan_temple' | 'boss_arena') => {
+    if (worldRef.current) {
+      worldRef.current.teleportTo(dest);
+      setIsVipModalOpen(false);
+      showToast(`🌀 Teletransportado a ${dest}`);
+    }
+  };
+
   // Handle Settings Update
   const handleUpdateSettings = (newSettings: Partial<GameSettings>) => {
     const updated = { ...settings, ...newSettings };
@@ -753,6 +856,8 @@ export default function App() {
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenHelp={() => setIsHelpOpen(true)}
           onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
+          isVip={isVip}
+          onOpenVipProfile={() => setIsVipModalOpen(true)}
           settings={settings}
           onUpdateSettings={handleUpdateSettings}
           isMusicOn={isMusicOn}
@@ -791,6 +896,8 @@ export default function App() {
           currentDimension={currentDimension}
           zombiesDefeated={zombiesDefeated}
           currentUser={currentUser}
+          isVip={isVip}
+          onOpenVipProfile={() => setIsVipModalOpen(true)}
           onSignInGoogle={handleSignInGoogle}
           onSignOut={handleSignOut}
           onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
@@ -815,6 +922,19 @@ export default function App() {
           lastToast={lastToast}
         />
       )}
+
+      {/* VIP Profile & God Mode Modal for Santiago */}
+      <VipProfileModal
+        isOpen={isVipModalOpen}
+        onClose={() => setIsVipModalOpen(false)}
+        user={vipProfile}
+        inventory={inventory}
+        onUpdateUser={handleUpdateVipProfile}
+        onRefillInfiniteCoins={handleRefillInfiniteCoins}
+        onUnlockAllSwords={handleUnlockAllSwords}
+        onUnlockAllMultipliers={handleUnlockAllMultipliers}
+        onTeleportTo={handleTeleportTo}
+      />
 
       {/* Leaderboard Modal (Powered by Firebase Firestore) */}
       <LeaderboardModal

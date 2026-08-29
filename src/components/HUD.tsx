@@ -26,7 +26,8 @@ import {
   LogIn,
   LogOut,
   User as UserIcon,
-  Cloud
+  Cloud,
+  Crown
 } from 'lucide-react';
 import { TimeState, PlayerInventory, WorldDimension, MayanBossState, ControlDevice } from '../types';
 import { User } from 'firebase/auth';
@@ -56,6 +57,8 @@ interface HUDProps {
   currentDimension?: WorldDimension;
   zombiesDefeated?: number;
   currentUser?: User | null;
+  isVip?: boolean;
+  onOpenVipProfile?: () => void;
   onSignInGoogle?: () => void;
   onSignOut?: () => void;
   onOpenLeaderboard?: () => void;
@@ -107,6 +110,8 @@ export const HUD: React.FC<HUDProps> = ({
   currentDimension = 'main',
   zombiesDefeated = 0,
   currentUser,
+  isVip = false,
+  onOpenVipProfile,
   onSignInGoogle,
   onSignOut,
   onOpenLeaderboard,
@@ -296,10 +301,20 @@ export const HUD: React.FC<HUDProps> = ({
           {currentUser ? (
             <div
               id="hud-user-profile"
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/80 backdrop-blur-md shadow-md text-slate-200 text-xs"
-              title={`Conectado como ${currentUser.displayName || currentUser.email} (Progreso guardado en Firebase)`}
+              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl backdrop-blur-md shadow-md text-xs border ${
+                isVip
+                  ? 'bg-amber-950/90 border-amber-400/80 text-amber-200'
+                  : 'bg-slate-900/80 border-slate-700/80 text-slate-200'
+              }`}
+              title={
+                isVip
+                  ? `👑 VIP Santiago (${currentUser.email}) - Poderes Ilimitados Activos`
+                  : `Conectado como ${currentUser.displayName || currentUser.email} (Progreso guardado en Firebase)`
+              }
             >
-              {currentUser.photoURL ? (
+              {isVip ? (
+                <Crown className="w-4 h-4 text-amber-400 fill-amber-400 animate-bounce" />
+              ) : currentUser.photoURL ? (
                 <img
                   src={currentUser.photoURL}
                   alt=""
@@ -309,10 +324,10 @@ export const HUD: React.FC<HUDProps> = ({
               ) : (
                 <UserIcon className="w-3.5 h-3.5 text-amber-400" />
               )}
-              <span className="font-semibold text-[11px] max-w-[90px] truncate text-slate-200">
-                {currentUser.displayName?.split(' ')[0] || 'Jugador'}
+              <span className={`font-semibold text-[11px] max-w-[90px] truncate ${isVip ? 'text-amber-300 font-black' : 'text-slate-200'}`}>
+                {isVip ? 'Santiago VIP' : currentUser.displayName?.split(' ')[0] || 'Jugador'}
               </span>
-              <Cloud className="w-3 h-3 text-emerald-400" />
+              <Cloud className={`w-3 h-3 ${isVip ? 'text-amber-400' : 'text-emerald-400'}`} />
             </div>
           ) : (
             <button
@@ -327,6 +342,26 @@ export const HUD: React.FC<HUDProps> = ({
             >
               <LogIn className="w-3.5 h-3.5 text-blue-200" />
               <span className="hidden sm:inline text-[11px]">Guardar</span>
+            </button>
+          )}
+
+          {/* VIP Santiago Control Button */}
+          {isVip && (
+            <button
+              id="hud-btn-vip"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onOpenVipProfile?.();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenVipProfile?.();
+              }}
+              aria-label="Panel VIP Dios"
+              title="Panel VIP Santiago - Modo Dios y Poderes Ilimitados"
+              className="p-2 rounded-xl border border-amber-400 bg-gradient-to-tr from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-500/30 transition active:scale-95 touch-none select-none animate-pulse"
+            >
+              <Crown className="w-4 h-4 text-slate-950 fill-slate-950" />
             </button>
           )}
 

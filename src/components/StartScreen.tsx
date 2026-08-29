@@ -18,7 +18,8 @@ import {
   LogIn,
   LogOut,
   User as UserIcon,
-  CloudCheck
+  CloudCheck,
+  Crown
 } from 'lucide-react';
 import { GameSettings, ControlDevice } from '../types';
 import { User } from 'firebase/auth';
@@ -28,6 +29,8 @@ interface StartScreenProps {
   onOpenSettings: () => void;
   onOpenHelp: () => void;
   onOpenLeaderboard?: () => void;
+  isVip?: boolean;
+  onOpenVipProfile?: () => void;
   settings: GameSettings;
   onUpdateSettings: (newSettings: Partial<GameSettings>) => void;
   isMusicOn: boolean;
@@ -43,6 +46,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   onOpenSettings,
   onOpenHelp,
   onOpenLeaderboard,
+  isVip = false,
+  onOpenVipProfile,
   settings,
   onUpdateSettings,
   isMusicOn,
@@ -79,10 +84,16 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             </div>
           )}
 
-          {/* Firebase User Auth Status */}
+          {/* Firebase User Auth Status & VIP Crown */}
           {currentUser ? (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-200 text-xs">
-              {currentUser.photoURL ? (
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs border ${
+              isVip
+                ? 'bg-amber-950/80 border-amber-400 text-amber-200 shadow-md shadow-amber-400/20'
+                : 'bg-slate-800/80 border-slate-700 text-slate-200'
+            }`}>
+              {isVip ? (
+                <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400 animate-bounce" />
+              ) : currentUser.photoURL ? (
                 <img
                   src={currentUser.photoURL}
                   alt=""
@@ -92,9 +103,18 @@ export const StartScreen: React.FC<StartScreenProps> = ({
               ) : (
                 <UserIcon className="w-3.5 h-3.5 text-amber-400" />
               )}
-              <span className="font-semibold max-w-[100px] sm:max-w-[140px] truncate">
-                {currentUser.displayName || currentUser.email}
+              <span className={`font-semibold max-w-[100px] sm:max-w-[140px] truncate ${isVip ? 'text-amber-300 font-bold' : ''}`}>
+                {isVip ? '👑 Santiago VIP' : currentUser.displayName || currentUser.email}
               </span>
+              {isVip && onOpenVipProfile && (
+                <button
+                  onClick={onOpenVipProfile}
+                  title="Abrir Panel VIP Dios"
+                  className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] hover:bg-amber-300 transition cursor-pointer"
+                >
+                  MODO DIOS
+                </button>
+              )}
               <button
                 onClick={onSignOut}
                 title="Cerrar sesión"
