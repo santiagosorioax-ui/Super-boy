@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameWorld } from './game/GameWorld';
 import { soundEngine } from './audio/soundEngine';
-import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier, UserProfile } from './types';
+import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier, UserProfile, ControlDevice } from './types';
 import { HUD } from './components/HUD';
 import { SettingsModal } from './components/SettingsModal';
 import { VictoryModal } from './components/VictoryModal';
@@ -38,8 +38,9 @@ export default function App() {
   const userProfileRef = useRef(userProfile);
   userProfileRef.current = userProfile;
 
-  // Game state
-  const isMobile = typeof window !== 'undefined' && (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
+  // Game state & Device Mode
+  const isMobileDevice = typeof window !== 'undefined' && (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
+  const [controlMode, setControlMode] = useState<ControlDevice>(isMobileDevice ? 'mobile' : 'pc');
   const [isPlaying, setIsPlaying] = useState(false);
   const [score, setScore] = useState(0);
   const [bestScore, setBestScore] = useState(0);
@@ -108,8 +109,9 @@ export default function App() {
     cycleSpeed: 'normal',
     showCompass: true,
     viewMode: 'first_person',
-    graphicsQuality: isMobile ? 'medium' : 'high',
+    graphicsQuality: isMobileDevice ? 'medium' : 'high',
     showFps: false,
+    controlMode: isMobileDevice ? 'mobile' : 'pc',
   });
 
   const [currentDimension, setCurrentDimension] = useState<WorldDimension>('main');
@@ -314,8 +316,12 @@ export default function App() {
     }
   }, [score, bestScore]);
 
-  // Handle Play Game from Title Screen
-  const handlePlayGame = useCallback(() => {
+  // Handle Play Game from Title Screen (with selected or detected control mode)
+  const handlePlayGame = useCallback((chosenMode?: ControlDevice) => {
+    const activeMode: ControlDevice = chosenMode || controlMode;
+    setControlMode(activeMode);
+    setSettings((prev) => ({ ...prev, controlMode: activeMode }));
+
     soundEngine.init();
     soundEngine.resume();
     soundEngine.playGameStartSound();
@@ -324,8 +330,24 @@ export default function App() {
       soundEngine.startMusic();
     }
     setIsPlaying(true);
-    showToast('🚀 ¡A jugar SUPER BOY!');
-  }, [isMusicOn, showToast]);
+    showToast(
+      activeMode === 'mobile'
+        ? '📱 Modo Celular Iniciado: Botones y Joystick Táctiles Activos'
+        : '💻 Modo PC Iniciado: Teclado y Ratón Activos'
+    );
+  }, [controlMode, isMusicOn, showToast]);
+
+  // Handle Quick Toggle of Control Mode (PC vs Celular) during gameplay
+  const handleToggleControlMode = useCallback(() => {
+    const nextMode: ControlDevice = controlMode === 'pc' ? 'mobile' : 'pc';
+    setControlMode(nextMode);
+    setSettings((prev) => ({ ...prev, controlMode: nextMode }));
+    showToast(
+      nextMode === 'mobile'
+        ? '📱 Modo Celular Activado (Botones Táctiles en Pantalla)'
+        : '💻 Modo PC Activado (Teclado y Ratón)'
+    );
+  }, [controlMode, showToast]);
 
   // Keyboard shortcut (Enter / Space) to start game while in Start Screen
   useEffect(() => {
@@ -575,6 +597,9 @@ export default function App() {
     if (newSettings.fov !== undefined && worldRef.current) {
       worldRef.current.setFov(newSettings.fov);
     }
+    if (newSettings.controlMode !== undefined) {
+      setControlMode(newSettings.controlMode);
+    }
     if (newSettings.graphicsQuality !== undefined && worldRef.current) {
       worldRef.current.setGraphicsQuality(newSettings.graphicsQuality);
     }
@@ -757,6 +782,8 @@ export default function App() {
           isFlashlightOn={isFlashlightOn}
           viewMode={viewMode}
           isSprinting={isSprinting}
+          controlMode={controlMode}
+          onToggleControlMode={handleToggleControlMode}
           radar={settings.showCompass ? radar : null}
           isNearShop={isNearShop}
           isNearMultiplierShop={isNearMultiplierShop}
@@ -795,12 +822,19 @@ export default function App() {
       <UserProfileModal
         isOpen={isUserProfileOpen}
         onClose={() => setIsUserProfileOpen(false)}
-        userProfile={userProfile}
+        user={userProfile}
+        inventory={inventory}
         onUpdateUser={handleUpdateUserProfile}
         onRefillInfiniteCoins={handleRefillInfiniteCoins}
         onUnlockAllSwords={handleUnlockAllSwords}
         onUnlockAllMultipliers={handleUnlockAllMultipliers}
-        onTeleportTo={handleTeleportTo}
+        onTeleportTo={(world) => {
+          if (worldRef.current) {
+            worldRef.current.teleportToWorld(world);
+            setIsUserProfileOpen(false);
+            showToast(`✨ Teletransportado a: ${world}`);
+          }
+        }}
       />
 
       {/* Shop Modal */}

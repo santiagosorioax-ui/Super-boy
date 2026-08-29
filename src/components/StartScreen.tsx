@@ -13,12 +13,14 @@ import {
   VolumeX,
   Compass,
   Trophy,
-  Crown
+  Crown,
+  Monitor,
+  Smartphone
 } from 'lucide-react';
-import { GameSettings, UserProfile } from '../types';
+import { GameSettings, UserProfile, ControlDevice } from '../types';
 
 interface StartScreenProps {
-  onPlay: () => void;
+  onPlay: (mode?: ControlDevice) => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
   settings: GameSettings;
@@ -117,21 +119,52 @@ export const StartScreen: React.FC<StartScreenProps> = ({
           </div>
         </div>
 
-        {/* Main PLAY Button */}
-        <button
-          id="btn-play-game"
-          onClick={onPlay}
-          className="group relative w-full max-w-sm py-4 px-8 mt-2 mb-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:via-teal-400 hover:to-emerald-500 text-white text-2xl sm:text-3xl font-extrabold rounded-2xl shadow-[0_8px_30px_rgba(16,185,129,0.45)] hover:shadow-[0_12px_40px_rgba(16,185,129,0.65)] transform hover:-translate-y-1 active:translate-y-0.5 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 border-2 border-emerald-300/40"
-        >
-          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <Play className="w-6 h-6 fill-white text-white ml-0.5" />
-          </div>
-          <span className="tracking-wider uppercase">PLAY</span>
-        </button>
+        {/* Main 2 Buttons: JUGAR EN PC y JUGAR EN CELULAR */}
+        <div className="w-full max-w-md grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-2 mb-3">
+          {/* 1. Jugar en PC */}
+          <button
+            id="btn-play-pc"
+            onClick={() => onPlay('pc')}
+            className="group relative flex flex-col items-center justify-center p-4 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-700 hover:from-blue-500 hover:via-indigo-500 hover:to-cyan-600 text-white border-2 border-blue-400/60 shadow-[0_8px_25px_rgba(37,99,235,0.45)] hover:shadow-[0_12px_35px_rgba(37,99,235,0.65)] transform hover:-translate-y-1 active:translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer text-center select-none"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform shadow-md">
+              <Monitor className="w-6 h-6 text-cyan-200" />
+            </div>
+            <span className="text-base sm:text-lg font-black tracking-wide uppercase">
+              JUGAR EN PC
+            </span>
+            <span className="text-[11px] text-cyan-200 font-medium mt-0.5">
+              ⌨️ Teclado + Ratón
+            </span>
+            <span className="text-[10px] text-blue-200/80 font-normal">
+              (Sin botones táctiles)
+            </span>
+          </button>
+
+          {/* 2. Jugar en Celular */}
+          <button
+            id="btn-play-mobile"
+            onClick={() => onPlay('mobile')}
+            className="group relative flex flex-col items-center justify-center p-4 rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-green-700 hover:from-emerald-500 hover:via-teal-500 hover:to-green-600 text-white border-2 border-emerald-400/60 shadow-[0_8px_25px_rgba(16,185,129,0.45)] hover:shadow-[0_12px_35px_rgba(16,185,129,0.65)] transform hover:-translate-y-1 active:translate-y-0.5 active:scale-95 transition-all duration-200 cursor-pointer text-center select-none"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform shadow-md">
+              <Smartphone className="w-6 h-6 text-emerald-200" />
+            </div>
+            <span className="text-base sm:text-lg font-black tracking-wide uppercase">
+              JUGAR EN CELULAR
+            </span>
+            <span className="text-[11px] text-emerald-200 font-medium mt-0.5">
+              📱 Controles Táctiles
+            </span>
+            <span className="text-[10px] text-emerald-200/80 font-normal">
+              (Joystick y Botones activos)
+            </span>
+          </button>
+        </div>
 
         {/* Keyboard hint */}
-        <p className="text-[11px] text-slate-400 mb-6 font-medium">
-          Presiona <kbd className="px-2 py-0.5 bg-slate-800 text-amber-300 rounded border border-slate-700 font-mono text-[10px]">ENTER</kbd> o <kbd className="px-2 py-0.5 bg-slate-800 text-amber-300 rounded border border-slate-700 font-mono text-[10px]">ESPACIO</kbd> para iniciar
+        <p className="text-[11px] text-slate-400 mb-5 font-medium">
+          Presiona <kbd className="px-2 py-0.5 bg-slate-800 text-amber-300 rounded border border-slate-700 font-mono text-[10px]">ENTER</kbd> o <kbd className="px-2 py-0.5 bg-slate-800 text-amber-300 rounded border border-slate-700 font-mono text-[10px]">ESPACIO</kbd> para jugar en PC
         </p>
 
         {/* Quick Settings & Preference Bar */}

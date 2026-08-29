@@ -20,9 +20,11 @@ import {
   Home,
   Heart,
   Shirt,
-  Crown
+  Crown,
+  Monitor,
+  Smartphone
 } from 'lucide-react';
-import { TimeState, PlayerInventory, WorldDimension, MayanBossState, UserProfile } from '../types';
+import { TimeState, PlayerInventory, WorldDimension, MayanBossState, UserProfile, ControlDevice } from '../types';
 
 interface HUDProps {
   score: number;
@@ -36,6 +38,8 @@ interface HUDProps {
   isFlashlightOn: boolean;
   viewMode: 'first_person' | 'third_person';
   isSprinting: boolean;
+  controlMode?: ControlDevice;
+  onToggleControlMode?: () => void;
   radar: { angleDeg: number; distance: number } | null;
   isNearShop?: boolean;
   isNearMultiplierShop?: boolean;
@@ -83,6 +87,8 @@ export const HUD: React.FC<HUDProps> = ({
   isFlashlightOn,
   viewMode,
   isSprinting,
+  controlMode = 'pc',
+  onToggleControlMode,
   radar,
   isNearShop = false,
   isNearMultiplierShop = false,
@@ -296,6 +302,38 @@ export const HUD: React.FC<HUDProps> = ({
             </button>
           )}
 
+          {/* Control Mode Toggle Button (PC vs Celular) */}
+          <button
+            id="hud-btn-control-mode"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onToggleControlMode?.();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleControlMode?.();
+            }}
+            aria-label={controlMode === 'mobile' ? 'Modo Celular (Táctil)' : 'Modo PC (Teclado/Ratón)'}
+            title={controlMode === 'mobile' ? 'Modo Celular (Clic para cambiar a PC)' : 'Modo PC (Clic para cambiar a Celular)'}
+            className={`p-2 rounded-xl border backdrop-blur-md shadow-md transition active:scale-95 touch-none select-none flex items-center gap-1 text-xs font-bold ${
+              controlMode === 'mobile'
+                ? 'bg-emerald-600/80 border-emerald-400/60 text-white shadow-emerald-950/40'
+                : 'bg-blue-600/80 border-blue-400/60 text-white shadow-blue-950/40'
+            }`}
+          >
+            {controlMode === 'mobile' ? (
+              <>
+                <Smartphone className="w-4 h-4 text-emerald-200" />
+                <span className="hidden sm:inline text-[10px]">CEL</span>
+              </>
+            ) : (
+              <>
+                <Monitor className="w-4 h-4 text-cyan-200" />
+                <span className="hidden sm:inline text-[10px]">PC</span>
+              </>
+            )}
+          </button>
+
           {/* Clothing Button (sin función asignada por ahora) */}
           <button
             id="hud-btn-outfits"
@@ -503,159 +541,173 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* 6. TOUCH LOOK AREA (Mobile touch screen only for camera drag, hidden on PC) */}
-      <div
-        id="touch-look-zone"
-        className="md:hidden absolute top-16 right-0 bottom-0 w-[55%] pointer-events-auto touch-none z-0"
-        onTouchStart={onLookTouchStart}
-        onTouchMove={onLookTouchMove}
-        onTouchEnd={onLookTouchEnd}
-      />
-
-      {/* 7. VIRTUAL JOYSTICK (Mobile Only) */}
-      <div
-        id="touch-joy-zone"
-        className="md:hidden absolute bottom-6 left-6 w-36 h-36 rounded-full border-2 border-white/20 bg-slate-900/30 backdrop-blur-sm pointer-events-auto touch-none flex items-center justify-center shadow-2xl z-20 select-none"
-        onTouchStart={onJoyTouchStart}
-        onTouchMove={onJoyTouchMove}
-        onTouchEnd={onJoyTouchEnd}
-      >
-        {/* Joystick Base Indicator */}
-        <div className="w-12 h-12 rounded-full border border-white/20 bg-white/10 flex items-center justify-center pointer-events-none text-white/40 text-[10px] font-bold">
-          MOVE
-        </div>
-        {/* Dynamic Thumb stick */}
+      {/* 6. TOUCH LOOK AREA (Active only when playing in Mobile mode) */}
+      {controlMode === 'mobile' && (
         <div
-          className="absolute w-14 h-14 rounded-full bg-gradient-to-br from-white/80 to-white/40 shadow-lg border border-white/60 pointer-events-none transition-transform duration-75"
-          style={{
-            transform: `translate(${joyStickPos.x}px, ${joyStickPos.y}px)`,
-          }}
+          id="touch-look-zone"
+          className="absolute top-16 right-0 bottom-0 w-[55%] pointer-events-auto touch-none z-0"
+          onTouchStart={onLookTouchStart}
+          onTouchMove={onLookTouchMove}
+          onTouchEnd={onLookTouchEnd}
         />
-      </div>
+      )}
 
-      {/* 8. MOBILE ACTION BUTTONS (Mobile Only) */}
-      <div className="md:hidden absolute bottom-6 right-6 flex flex-col items-end gap-3 pointer-events-auto z-20 touch-none select-none">
-        {/* Small Utility Action Row: Linterna, Cámara, Espada, Turbo */}
-        <div className="flex items-center gap-2">
-          {/* Sword Attack Button (if sword equipped or callable) */}
-          {inventory?.equippedSwordId && onSwingSword && (
+      {/* 7. VIRTUAL JOYSTICK (Active only when playing in Mobile mode) */}
+      {controlMode === 'mobile' && (
+        <div
+          id="touch-joy-zone"
+          className="absolute bottom-6 left-6 w-36 h-36 rounded-full border-2 border-white/20 bg-slate-900/40 backdrop-blur-sm pointer-events-auto touch-none flex items-center justify-center shadow-2xl z-20 select-none animate-fade-in"
+          onTouchStart={onJoyTouchStart}
+          onTouchMove={onJoyTouchMove}
+          onTouchEnd={onJoyTouchEnd}
+        >
+          {/* Joystick Base Indicator */}
+          <div className="w-12 h-12 rounded-full border border-white/20 bg-white/10 flex items-center justify-center pointer-events-none text-white/40 text-[10px] font-bold">
+            MOVE
+          </div>
+          {/* Dynamic Thumb stick */}
+          <div
+            className="absolute w-14 h-14 rounded-full bg-gradient-to-br from-white/80 to-white/40 shadow-lg border border-white/60 pointer-events-none transition-transform duration-75"
+            style={{
+              transform: `translate(${joyStickPos.x}px, ${joyStickPos.y}px)`,
+            }}
+          />
+        </div>
+      )}
+
+      {/* 8. MOBILE ACTION BUTTONS (Active only when playing in Mobile mode) */}
+      {controlMode === 'mobile' && (
+        <div 
+          id="mobile-action-buttons-container"
+          className="absolute bottom-6 right-6 flex flex-col items-end gap-3 pointer-events-auto z-20 touch-none select-none animate-fade-in"
+        >
+          {/* Small Utility Action Row: Linterna, Cámara, Espada, Turbo */}
+          <div className="flex items-center gap-2">
+            {/* Sword Attack Button (if sword equipped or callable) */}
+            {inventory?.equippedSwordId && onSwingSword && (
+              <button
+                id="btn-action-sword"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onSwingSword();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSwingSword();
+                }}
+                className="w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 bg-rose-600/90 border-rose-400 text-white animate-pulse touch-none select-none"
+                title="Atacar con Espada"
+              >
+                <Sword className="w-5 h-5" />
+              </button>
+            )}
+
+            {/* View Mode Toggle (1st vs 3rd Person) */}
             <button
-              id="btn-action-sword"
+              id="btn-action-camera"
               onPointerDown={(e) => {
                 e.stopPropagation();
-                onSwingSword();
+                onToggleViewMode();
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                onSwingSword();
+                onToggleViewMode();
               }}
-              className="w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 bg-rose-600/90 border-rose-400 text-white animate-pulse touch-none select-none"
-              title="Atacar con Espada (R)"
+              className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none ${
+                viewMode === 'third_person'
+                  ? 'bg-indigo-600/80 border-indigo-400 text-white'
+                  : 'bg-slate-900/80 border-slate-700 text-slate-300'
+              }`}
+              title="Cambiar Cámara (1ª/3ª persona)"
             >
-              <Sword className="w-5 h-5" />
+              <Eye className="w-5 h-5" />
             </button>
-          )}
 
-          {/* View Mode Toggle (1st vs 3rd Person) */}
+            {/* Flashlight Toggle */}
+            <button
+              id="btn-action-flashlight"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onToggleFlashlight();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFlashlight();
+              }}
+              className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none ${
+                isFlashlightOn
+                  ? 'bg-amber-500/80 border-amber-300 text-white shadow-amber-500/30'
+                  : 'bg-slate-900/80 border-slate-700 text-slate-300'
+              }`}
+              title="Linterna"
+            >
+              <Flashlight className="w-5 h-5" />
+            </button>
+
+            {/* Sprint / Turbo Button */}
+            <button
+              id="btn-action-turbo"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onToggleSprint(!isSprinting);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSprint(!isSprinting);
+              }}
+              className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none ${
+                isSprinting
+                  ? 'bg-amber-600/90 border-amber-400 text-white animate-pulse'
+                  : 'bg-slate-900/80 border-slate-700 text-slate-300'
+              }`}
+              title="Correr / Turbo"
+            >
+              <Zap className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Big Jump Button */}
           <button
-            id="btn-action-camera"
+            id="btn-action-jump"
             onPointerDown={(e) => {
               e.stopPropagation();
-              onToggleViewMode();
+              onJump();
             }}
             onClick={(e) => {
               e.stopPropagation();
-              onToggleViewMode();
+              onJump();
             }}
-            className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none ${
-              viewMode === 'third_person'
-                ? 'bg-indigo-600/80 border-indigo-400 text-white'
-                : 'bg-slate-900/80 border-slate-700 text-slate-300'
-            }`}
-            title="Cambiar Cámara (1ª/3ª persona)"
+            className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 active:from-blue-700 active:to-indigo-600 border-2 border-blue-300/60 text-white font-extrabold text-sm tracking-wider shadow-2xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition touch-none select-none"
           >
-            <Eye className="w-5 h-5" />
-          </button>
-
-          {/* Flashlight Toggle */}
-          <button
-            id="btn-action-flashlight"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onToggleFlashlight();
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleFlashlight();
-            }}
-            className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none ${
-              isFlashlightOn
-                ? 'bg-amber-500/80 border-amber-300 text-white shadow-amber-500/30'
-                : 'bg-slate-900/80 border-slate-700 text-slate-300'
-            }`}
-            title="Linterna (F)"
-          >
-            <Flashlight className="w-5 h-5" />
-          </button>
-
-          {/* Sprint / Turbo Button */}
-          <button
-            id="btn-action-turbo"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onToggleSprint(!isSprinting);
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSprint(!isSprinting);
-            }}
-            className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none ${
-              isSprinting
-                ? 'bg-amber-600/90 border-amber-400 text-white animate-pulse'
-                : 'bg-slate-900/80 border-slate-700 text-slate-300'
-            }`}
-            title="Correr / Turbo (Shift)"
-          >
-            <Zap className="w-5 h-5" />
+            <span className="text-xl">⬆️</span>
+            <span>SALTAR</span>
           </button>
         </div>
+      )}
 
-        {/* Big Jump Button */}
-        <button
-          id="btn-action-jump"
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            onJump();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onJump();
-          }}
-          className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 active:from-blue-700 active:to-indigo-600 border-2 border-blue-300/60 text-white font-extrabold text-sm tracking-wider shadow-2xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition touch-none select-none"
+      {/* 9. DESKTOP HELPER HINT (Active only when playing in PC mode) */}
+      {controlMode === 'pc' && (
+        <div 
+          id="pc-controls-hint-bar"
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2.5 text-[11px] text-slate-200/90 bg-slate-950/85 border border-slate-700/80 backdrop-blur-md px-4 py-1.5 rounded-full shadow-xl pointer-events-none z-20 max-w-[95vw] overflow-x-auto whitespace-nowrap animate-fade-in"
         >
-          <span className="text-xl">⬆️</span>
-          <span>SALTAR</span>
-        </button>
-      </div>
-
-      {/* 9. DESKTOP HELPER HINT (Bottom center) */}
-      <div className="hidden md:flex absolute bottom-3 left-1/2 -translate-x-1/2 items-center gap-2.5 text-[11px] text-slate-200/90 bg-slate-950/85 border border-slate-700/80 backdrop-blur-md px-4 py-1.5 rounded-full shadow-xl pointer-events-none z-20">
-        <span className="text-amber-300 font-semibold">🖱️ Clic Derecho (mantener)</span> Girar Cámara
-        <span className="text-slate-500">•</span>
-        <span className="text-rose-300 font-semibold">🖱️ Clic Izq / R</span> Atacar
-        <span className="text-slate-500">•</span>
-        <span><b>WASD</b> Mover</span>
-        <span className="text-slate-500">•</span>
-        <span><b>Espacio</b> Saltar</span>
-        <span className="text-slate-500">•</span>
-        <span><b>Shift</b> Correr</span>
-        <span className="text-slate-500">•</span>
-        <span><b>E</b> Tienda/Templo</span>
-        <span className="text-slate-500">•</span>
-        <span><b>V</b> Cámara</span>
-        <span className="text-slate-500">•</span>
-        <span><b>Rueda</b> Zoom</span>
-      </div>
+          <span className="text-amber-300 font-semibold">🖱️ Clic Derecho (mantener)</span> Girar Cámara
+          <span className="text-slate-500">•</span>
+          <span className="text-rose-300 font-semibold">🖱️ Clic Izq / R</span> Atacar
+          <span className="text-slate-500">•</span>
+          <span><b>WASD</b> Mover</span>
+          <span className="text-slate-500">•</span>
+          <span><b>Espacio</b> Saltar</span>
+          <span className="text-slate-500">•</span>
+          <span><b>Shift</b> Correr</span>
+          <span className="text-slate-500">•</span>
+          <span><b>E</b> Tienda/Templo</span>
+          <span className="text-slate-500">•</span>
+          <span><b>V</b> Cámara</span>
+          <span className="text-slate-500">•</span>
+          <span><b>Rueda</b> Zoom</span>
+        </div>
+      )}
     </div>
   );
 };

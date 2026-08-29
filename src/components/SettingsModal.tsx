@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Volume2, Sun, Moon, RotateCcw, Compass, Sliders, Eye, Gauge, Zap, Home } from 'lucide-react';
+import { X, Volume2, Sun, Moon, RotateCcw, Compass, Sliders, Eye, Gauge, Zap, Home, Monitor, Smartphone, Gamepad2 } from 'lucide-react';
 import { GameSettings } from '../types';
 
 interface SettingsModalProps {
@@ -46,6 +46,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Content list */}
         <div className="space-y-5 py-4 text-sm max-h-[70vh] overflow-y-auto pr-1">
+          {/* 0. Modo de Control (PC vs Celular) */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Gamepad2 className="w-3.5 h-3.5 text-cyan-400" />
+                Modo de Juego / Controles
+              </span>
+              <span className="text-[10px] text-cyan-400 font-normal">
+                {settings.controlMode === 'mobile' ? 'Botones táctiles activos' : 'Teclado y ratón'}
+              </span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                id="settings-btn-mode-pc"
+                onClick={() => onUpdateSettings({ controlMode: 'pc' })}
+                className={`px-3 py-2.5 rounded-xl text-xs font-semibold border flex items-center justify-center gap-2 transition ${
+                  settings.controlMode === 'pc'
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-900/40'
+                    : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <Monitor className="w-4 h-4 text-cyan-300" />
+                <span>Jugar en PC</span>
+              </button>
+              <button
+                type="button"
+                id="settings-btn-mode-mobile"
+                onClick={() => onUpdateSettings({ controlMode: 'mobile' })}
+                className={`px-3 py-2.5 rounded-xl text-xs font-semibold border flex items-center justify-center gap-2 transition ${
+                  settings.controlMode === 'mobile'
+                    ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-900/40'
+                    : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <Smartphone className="w-4 h-4 text-emerald-300" />
+                <span>Jugar en Celular</span>
+              </button>
+            </div>
+          </div>
           {/* 1. Mobile Performance & Graphics Quality */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">

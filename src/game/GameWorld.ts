@@ -2752,6 +2752,30 @@ export class GameWorld {
     // Sword slash particles disabled for mobile optimization
   }
 
+  public teleportTo(dest: 'spawn' | 'shop' | 'multiplier_shop' | 'candy_portal' | 'mayan_temple' | 'boss_arena' | string) {
+    if (dest === 'candy_portal' || dest === 'candy') {
+      this.teleportToWorld('candy');
+    } else if (dest === 'boss_arena' || dest === 'mayan_boss' || dest === 'mayan_temple') {
+      this.teleportToWorld('mayan_boss');
+    } else if (dest === 'shop') {
+      this.playerPos.set(16, 1.2, 0);
+      this.playerVel.set(0, 0, 0);
+      this.yaw = -Math.PI / 2;
+      this.pitch = 0;
+      this.spawnTeleportParticles(this.playerPos.clone());
+      soundEngine.playTeleportSound();
+    } else if (dest === 'multiplier_shop') {
+      this.playerPos.set(-16, 1.2, 0);
+      this.playerVel.set(0, 0, 0);
+      this.yaw = Math.PI / 2;
+      this.pitch = 0;
+      this.spawnTeleportParticles(this.playerPos.clone());
+      soundEngine.playTeleportSound();
+    } else {
+      this.teleportToSpawn();
+    }
+  }
+
   public teleportToSpawn() {
     // Spawn effect at departing position
     this.spawnTeleportParticles(this.playerPos.clone().add(new THREE.Vector3(0, 0.5, 0)));

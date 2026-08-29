@@ -9,6 +9,8 @@ export interface MayanBossState {
   isInvulnerable: boolean;
 }
 
+export type ControlDevice = 'pc' | 'mobile';
+
 export interface GameSettings {
   musicVolume: number;
   sfxVolume: number;
@@ -20,6 +22,7 @@ export interface GameSettings {
   showFps: boolean;
   graphicsQuality: 'low' | 'medium' | 'high';
   viewMode: 'first_person' | 'third_person';
+  controlMode?: ControlDevice;
 }
 
 export type ItemCategory = 'sword' | 'drink' | 'upgrade' | 'multiplier';
