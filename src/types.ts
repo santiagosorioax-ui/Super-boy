@@ -60,6 +60,19 @@ export interface PlayerBuffs {
   magnetRadius: number;
 }
 
+export interface UserProfile {
+  email: string;
+  username: string;
+  role: 'admin_unlimited' | 'standard';
+  isUnlimited: boolean;
+  infiniteCoins: boolean;
+  isGodMode: boolean; // Invincible to zombie & boss hits
+  superSpeed: boolean; // +100% base speed
+  superJump: boolean; // +100% jump height
+  superMagnet: boolean; // 50m coin magnet
+  freeTemplePass: boolean; // Free entry to Mayan Temple
+}
+
 export interface PlayerInventory {
   coins: number;
   health: number; // 0 to 5 (5 consecutive zombie hits kill the player)
@@ -69,6 +82,7 @@ export interface PlayerInventory {
   activeBuffs: PlayerBuffs;
   playerMultiplier: number;
   unlockedMultipliers: number[];
+  isGodMode?: boolean;
 }
 
 export interface CoinData {

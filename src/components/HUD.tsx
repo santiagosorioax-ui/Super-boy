@@ -19,9 +19,10 @@ import {
   Sparkles,
   Home,
   Heart,
-  Shirt
+  Shirt,
+  Crown
 } from 'lucide-react';
-import { TimeState, PlayerInventory, WorldDimension, MayanBossState } from '../types';
+import { TimeState, PlayerInventory, WorldDimension, MayanBossState, UserProfile } from '../types';
 
 interface HUDProps {
   score: number;
@@ -45,6 +46,8 @@ interface HUDProps {
   inventory?: PlayerInventory;
   currentDimension?: WorldDimension;
   zombiesDefeated?: number;
+  userProfile?: UserProfile;
+  onOpenUserProfile?: () => void;
   onToggleMusic: () => void;
   onToggleFlashlight: () => void;
   onToggleViewMode: () => void;
@@ -90,6 +93,8 @@ export const HUD: React.FC<HUDProps> = ({
   inventory,
   currentDimension = 'main',
   zombiesDefeated = 0,
+  userProfile,
+  onOpenUserProfile,
   onToggleMusic,
   onToggleFlashlight,
   onToggleViewMode,
@@ -272,6 +277,25 @@ export const HUD: React.FC<HUDProps> = ({
 
         {/* Right: Quick Action Controls (Sound, Outfits, Help, Settings) */}
         <div className="flex items-center gap-1.5">
+          {/* VIP Admin User Profile Button */}
+          {userProfile && (
+            <button
+              id="hud-btn-user-profile"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenUserProfile?.();
+              }}
+              aria-label="Perfil VIP Ilimitado"
+              title="Cuenta VIP de Santiago (Modo Dios / Monedas Infinitas)"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/30 border border-amber-300 active:scale-95 transition-all"
+            >
+              <Crown className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">VIP</span>
+              <span className="text-[10px] bg-slate-950 text-amber-300 px-1.5 py-0.5 rounded-md font-mono">∞</span>
+            </button>
+          )}
+
           {/* Clothing Button (sin función asignada por ahora) */}
           <button
             id="hud-btn-outfits"
@@ -479,19 +503,19 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* 6. TOUCH LOOK AREA (Right side of screen for camera drag) */}
+      {/* 6. TOUCH LOOK AREA (Mobile touch screen only for camera drag, hidden on PC) */}
       <div
         id="touch-look-zone"
-        className="absolute top-16 right-0 bottom-0 w-[55%] pointer-events-auto touch-none z-0"
+        className="md:hidden absolute top-16 right-0 bottom-0 w-[55%] pointer-events-auto touch-none z-0"
         onTouchStart={onLookTouchStart}
         onTouchMove={onLookTouchMove}
         onTouchEnd={onLookTouchEnd}
       />
 
-      {/* 7. VIRTUAL JOYSTICK (Bottom Left) */}
+      {/* 7. VIRTUAL JOYSTICK (Mobile Only) */}
       <div
         id="touch-joy-zone"
-        className="absolute bottom-6 left-6 w-36 h-36 rounded-full border-2 border-white/20 bg-slate-900/30 backdrop-blur-sm pointer-events-auto touch-none flex items-center justify-center shadow-2xl z-20 select-none"
+        className="md:hidden absolute bottom-6 left-6 w-36 h-36 rounded-full border-2 border-white/20 bg-slate-900/30 backdrop-blur-sm pointer-events-auto touch-none flex items-center justify-center shadow-2xl z-20 select-none"
         onTouchStart={onJoyTouchStart}
         onTouchMove={onJoyTouchMove}
         onTouchEnd={onJoyTouchEnd}
@@ -509,8 +533,8 @@ export const HUD: React.FC<HUDProps> = ({
         />
       </div>
 
-      {/* 8. MOBILE ACTION BUTTONS (Bottom Right) */}
-      <div className="absolute bottom-6 right-6 flex flex-col items-end gap-3 pointer-events-auto z-20 touch-none select-none">
+      {/* 8. MOBILE ACTION BUTTONS (Mobile Only) */}
+      <div className="md:hidden absolute bottom-6 right-6 flex flex-col items-end gap-3 pointer-events-auto z-20 touch-none select-none">
         {/* Small Utility Action Row: Linterna, Cámara, Espada, Turbo */}
         <div className="flex items-center gap-2">
           {/* Sword Attack Button (if sword equipped or callable) */}
@@ -615,22 +639,22 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* 9. DESKTOP HELPER HINT (Bottom center) */}
-      <div className="hidden lg:flex absolute bottom-3 left-1/2 -translate-x-1/2 items-center gap-3 text-[11px] text-slate-300/80 bg-slate-950/70 border border-slate-800 backdrop-blur-md px-4 py-1 rounded-full shadow pointer-events-none">
+      <div className="hidden md:flex absolute bottom-3 left-1/2 -translate-x-1/2 items-center gap-2.5 text-[11px] text-slate-200/90 bg-slate-950/85 border border-slate-700/80 backdrop-blur-md px-4 py-1.5 rounded-full shadow-xl pointer-events-none z-20">
+        <span className="text-amber-300 font-semibold">🖱️ Clic Derecho (mantener)</span> Girar Cámara
+        <span className="text-slate-500">•</span>
+        <span className="text-rose-300 font-semibold">🖱️ Clic Izq / R</span> Atacar
+        <span className="text-slate-500">•</span>
         <span><b>WASD</b> Mover</span>
-        <span>•</span>
+        <span className="text-slate-500">•</span>
         <span><b>Espacio</b> Saltar</span>
-        <span>•</span>
-        <span><b>E</b> Tienda</span>
-        <span>•</span>
-        <span><b>R</b> Atacar</span>
-        <span>•</span>
+        <span className="text-slate-500">•</span>
         <span><b>Shift</b> Correr</span>
-        <span>•</span>
-        <span><b>F</b> Linterna</span>
-        <span>•</span>
+        <span className="text-slate-500">•</span>
+        <span><b>E</b> Tienda/Templo</span>
+        <span className="text-slate-500">•</span>
         <span><b>V</b> Cámara</span>
-        <span>•</span>
-        <span><b>M</b> Música</span>
+        <span className="text-slate-500">•</span>
+        <span><b>Rueda</b> Zoom</span>
       </div>
     </div>
   );

@@ -12,9 +12,10 @@ import {
   Volume2, 
   VolumeX,
   Compass,
-  Trophy
+  Trophy,
+  Crown
 } from 'lucide-react';
-import { GameSettings } from '../types';
+import { GameSettings, UserProfile } from '../types';
 
 interface StartScreenProps {
   onPlay: () => void;
@@ -25,6 +26,8 @@ interface StartScreenProps {
   isMusicOn: boolean;
   onToggleMusic: () => void;
   bestScore?: number;
+  userProfile?: UserProfile;
+  onOpenUserProfile?: () => void;
 }
 
 export const StartScreen: React.FC<StartScreenProps> = ({
@@ -36,6 +39,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   isMusicOn,
   onToggleMusic,
   bestScore = 0,
+  userProfile,
+  onOpenUserProfile,
 }) => {
   return (
     <div 
@@ -52,6 +57,15 @@ export const StartScreen: React.FC<StartScreenProps> = ({
 
         {/* Top Badges */}
         <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+          {userProfile && (
+            <button
+              onClick={onOpenUserProfile}
+              className="flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/30 via-yellow-500/30 to-purple-500/30 border border-amber-400/70 text-amber-200 text-xs font-black tracking-wide hover:scale-105 transition shadow-lg shadow-amber-950/50 cursor-pointer"
+            >
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              <span>VIP: {userProfile.username} (Sin Límites)</span>
+            </button>
+          )}
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold tracking-wide">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>Mundo Abierto 3D</span>

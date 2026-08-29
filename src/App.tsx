@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameWorld } from './game/GameWorld';
 import { soundEngine } from './audio/soundEngine';
-import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier } from './types';
+import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier, UserProfile } from './types';
 import { HUD } from './components/HUD';
 import { SettingsModal } from './components/SettingsModal';
 import { VictoryModal } from './components/VictoryModal';
@@ -15,10 +15,28 @@ import { ShopModal } from './components/ShopModal';
 import { MultiplierShopModal } from './components/MultiplierShopModal';
 import { DeathModal } from './components/DeathModal';
 import { StartScreen } from './components/StartScreen';
+import { UserProfileModal } from './components/UserProfileModal';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
+
+  // Unlimited Admin User Profile for santiagosorioax@gmail.com
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    email: 'santiagosorioax@gmail.com',
+    username: 'Santiago Osorio',
+    role: 'admin_unlimited',
+    isUnlimited: true,
+    infiniteCoins: true,
+    isGodMode: true,
+    superSpeed: true,
+    superJump: true,
+    superMagnet: true,
+    freeTemplePass: true,
+  });
+  const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
+  const userProfileRef = useRef(userProfile);
+  userProfileRef.current = userProfile;
 
   // Game state
   const isMobile = typeof window !== 'undefined' && (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
@@ -43,7 +61,7 @@ export default function App() {
   const [lastToast, setLastToast] = useState<string | null>(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
 
-  // Shop & Inventory State
+  // Shop & Inventory State - Santiago has max coins, all swords and god blade
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isNearShop, setIsNearShop] = useState(false);
   const [isMultiplierShopOpen, setIsMultiplierShopOpen] = useState(false);
@@ -52,13 +70,14 @@ export default function App() {
   const [templeCost, setTempleCost] = useState(500);
   const [bossState, setBossState] = useState<MayanBossState | null>(null);
   const [inventory, setInventory] = useState<PlayerInventory>({
-    coins: 0,
+    coins: 999999999,
     health: 5,
     maxHealth: 5,
-    ownedSwordIds: [],
-    equippedSwordId: null,
-    playerMultiplier: 1,
-    unlockedMultipliers: [1],
+    ownedSwordIds: ['wood_sword', 'neon_katana', 'fire_greatsword', 'god_blade'],
+    equippedSwordId: 'god_blade',
+    playerMultiplier: 1000,
+    unlockedMultipliers: [1, 2, 5, 10, 25, 50, 100, 500, 1000],
+    isGodMode: true,
     activeBuffs: {
       speedTimeRemaining: 0,
       jumpTimeRemaining: 0,
@@ -167,6 +186,9 @@ export default function App() {
         setTempleCost(cost);
       },
       onSpendCoins: (amount: number) => {
+        if (userProfileRef.current.infiniteCoins || userProfileRef.current.isUnlimited) {
+          return true; // Unlimited Free purchases!
+        }
         if (inventoryRef.current.coins >= amount) {
           setInventory((prev) => ({ ...prev, coins: prev.coins - amount }));
           return true;
@@ -218,9 +240,11 @@ export default function App() {
         setInventory((prev) => ({ ...prev, health, maxHealth }));
       },
       onPlayerDied: () => {
+        if (userProfileRef.current.isGodMode) return;
         const currentCoins = inventoryRef.current.coins;
-        // Lose 20% of coins or at least 5 coins if player has coins
-        const lost = currentCoins > 0 ? Math.max(1, Math.floor(currentCoins * 0.25)) : 0;
+        const lost = (userProfileRef.current.infiniteCoins || userProfileRef.current.isUnlimited)
+          ? 0
+          : (currentCoins > 0 ? Math.max(1, Math.floor(currentCoins * 0.25)) : 0);
         setCoinsLostOnDeath(lost);
         setIsDeathModalOpen(true);
       },
@@ -230,6 +254,16 @@ export default function App() {
     });
 
     worldRef.current = world;
+    world.setUnlimitedPowers({
+      isGodMode: userProfileRef.current.isGodMode,
+      superSpeed: userProfileRef.current.superSpeed,
+      superJump: userProfileRef.current.superJump,
+      superMagnet: userProfileRef.current.superMagnet,
+      freeTemplePass: userProfileRef.current.freeTemplePass,
+    });
+    if (inventoryRef.current.equippedSwordId) {
+      world.setEquippedSword(inventoryRef.current.equippedSwordId);
+    }
     if (settingsRef.current.graphicsQuality) {
       world.setGraphicsQuality(settingsRef.current.graphicsQuality);
     }
@@ -357,9 +391,10 @@ export default function App() {
     }
   };
 
-  // Handle Buy Item in Shop
+  // Handle Buy Item in Shop (Free for VIP Santiago)
   const handleBuyItem = (item: ShopItem) => {
-    if (inventory.coins < item.price) {
+    const isFree = userProfile.infiniteCoins || userProfile.isUnlimited;
+    if (!isFree && inventory.coins < item.price) {
       soundEngine.playShopBuyFail();
       showToast('❌ ¡No tienes suficientes monedas!');
       return;
@@ -370,8 +405,8 @@ export default function App() {
     if (item.category === 'sword') {
       setInventory((prev) => ({
         ...prev,
-        coins: prev.coins - item.price,
-        ownedSwordIds: [...prev.ownedSwordIds, item.id],
+        coins: isFree ? prev.coins : prev.coins - item.price,
+        ownedSwordIds: prev.ownedSwordIds.includes(item.id) ? prev.ownedSwordIds : [...prev.ownedSwordIds, item.id],
         equippedSwordId: item.id,
       }));
 
@@ -394,7 +429,7 @@ export default function App() {
 
       setInventory((prev) => ({
         ...prev,
-        coins: prev.coins - item.price,
+        coins: isFree ? prev.coins : prev.coins - item.price,
         activeBuffs: {
           ...prev.activeBuffs,
           speedTimeRemaining: item.speedMultiplier
@@ -425,15 +460,16 @@ export default function App() {
     showToast(swordId ? '🗡️ Espada equipada' : '🗡️ Espada desequipada');
   };
 
-  // Handle Buy Multiplier Tier
+  // Handle Buy Multiplier Tier (Free for VIP Santiago)
   const handleBuyMultiplier = (tier: MultiplierTier) => {
-    if (tier.world === 'candy' && currentDimension !== 'candy') {
+    const isFree = userProfile.infiniteCoins || userProfile.isUnlimited;
+    if (tier.world === 'candy' && currentDimension !== 'candy' && !userProfile.freeTemplePass) {
       soundEngine.playShopBuyFail();
       showToast('🔒 ¡Debes cruzar el Portal al Mundo de Caramelo para comprar este multiplicador!');
       return;
     }
 
-    if (inventory.coins < tier.price) {
+    if (!isFree && inventory.coins < tier.price) {
       soundEngine.playShopBuyFail();
       showToast('❌ ¡No tienes suficientes monedas para este multiplicador!');
       return;
@@ -442,13 +478,68 @@ export default function App() {
     soundEngine.playShopBuySuccess();
     setInventory((prev) => ({
       ...prev,
-      coins: prev.coins - tier.price,
+      coins: isFree ? prev.coins : prev.coins - tier.price,
       unlockedMultipliers: prev.unlockedMultipliers.includes(tier.multiplier)
         ? prev.unlockedMultipliers
         : [...prev.unlockedMultipliers, tier.multiplier],
       playerMultiplier: tier.multiplier,
     }));
     showToast(`✨ ¡Multiplicador ${tier.multiplier}x comprado y activado!`);
+  };
+
+  // --- VIP ADMIN USER PROFILE HANDLERS ---
+  const handleUpdateUserProfile = (updated: UserProfile) => {
+    setUserProfile(updated);
+    if (worldRef.current) {
+      worldRef.current.setUnlimitedPowers({
+        isGodMode: updated.isGodMode,
+        superSpeed: updated.superSpeed,
+        superJump: updated.superJump,
+        superMagnet: updated.superMagnet,
+        freeTemplePass: updated.freeTemplePass,
+      });
+    }
+    showToast('👑 Configuración VIP de Santiago actualizada');
+  };
+
+  const handleRefillInfiniteCoins = () => {
+    setInventory((prev) => ({ ...prev, coins: 999999999 }));
+    setScore(999999999);
+    soundEngine.playCoinSound(1);
+    showToast('💰 ¡999,999,999 Monedas Infinitas Agregadas!');
+  };
+
+  const handleUnlockAllSwords = () => {
+    const allSwords = ['wood_sword', 'neon_katana', 'fire_greatsword', 'god_blade'];
+    setInventory((prev) => ({
+      ...prev,
+      ownedSwordIds: allSwords,
+      equippedSwordId: 'god_blade',
+    }));
+    if (worldRef.current) {
+      worldRef.current.setEquippedSword('god_blade');
+    }
+    soundEngine.playSwordSlashSound(true);
+    showToast('⚔️ ¡Todas las Espadas Desbloqueadas y Hoja de Dios Equipada!');
+  };
+
+  const handleUnlockAllMultipliers = () => {
+    const allMultipliers = [1, 2, 5, 10, 25, 50, 100, 500, 1000];
+    setInventory((prev) => ({
+      ...prev,
+      unlockedMultipliers: allMultipliers,
+      playerMultiplier: 1000,
+    }));
+    soundEngine.playEquipSound();
+    showToast('⚡ ¡Multiplicador 1000x Infinito Activado!');
+  };
+
+  const handleTeleportTo = (dest: 'spawn' | 'shop' | 'multiplier_shop' | 'candy_portal' | 'mayan_temple' | 'boss_arena') => {
+    if (worldRef.current) {
+      worldRef.current.teleportTo(dest);
+      setIsUserProfileOpen(false);
+      showToast(`✨ Teletransportado a: ${dest}`);
+    }
   };
 
   // Handle Equip/Select Multiplier Tier
@@ -647,6 +738,8 @@ export default function App() {
           isMusicOn={isMusicOn}
           onToggleMusic={handleToggleMusic}
           bestScore={bestScore}
+          userProfile={userProfile}
+          onOpenUserProfile={() => setIsUserProfileOpen(true)}
         />
       )}
 
@@ -674,6 +767,8 @@ export default function App() {
           inventory={inventory}
           currentDimension={currentDimension}
           zombiesDefeated={zombiesDefeated}
+          userProfile={userProfile}
+          onOpenUserProfile={() => setIsUserProfileOpen(true)}
           onToggleMusic={handleToggleMusic}
           onToggleFlashlight={handleToggleFlashlight}
           onToggleViewMode={handleToggleViewMode}
@@ -695,6 +790,18 @@ export default function App() {
           lastToast={lastToast}
         />
       )}
+
+      {/* VIP Santiago Osorio Unlimited Admin Profile Modal */}
+      <UserProfileModal
+        isOpen={isUserProfileOpen}
+        onClose={() => setIsUserProfileOpen(false)}
+        userProfile={userProfile}
+        onUpdateUser={handleUpdateUserProfile}
+        onRefillInfiniteCoins={handleRefillInfiniteCoins}
+        onUnlockAllSwords={handleUnlockAllSwords}
+        onUnlockAllMultipliers={handleUnlockAllMultipliers}
+        onTeleportTo={handleTeleportTo}
+      />
 
       {/* Shop Modal */}
       <ShopModal

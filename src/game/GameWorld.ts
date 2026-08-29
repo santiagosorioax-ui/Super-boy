@@ -103,6 +103,13 @@ export class GameWorld {
     magnetRadius: 20,
   };
 
+  // VIP / Admin Unlimited Privileges
+  private isGodMode = false;
+  private superSpeed = false;
+  private superJump = false;
+  private superMagnet = false;
+  private freeTemplePass = false;
+
   // Shop Buildings & Proximity (Main Valley & Candy World)
   private mainShopPos = new THREE.Vector3(6.5, 0.2, 2.0);
   private candyShopPos = new THREE.Vector3(608.0, 0.4, 588.0);
@@ -120,9 +127,13 @@ export class GameWorld {
   // Speed Aura Particles
   private speedAuraParticles: THREE.Points | null = null;
 
-  // Controls input
+  // Controls input & Mouse Camera Control
   private moveInput = { x: 0, y: 0 };
   private keyState: Record<string, boolean> = {};
+  private isRightMouseDown = false;
+  private isLeftMouseDown = false;
+  private lastMousePos = { x: 0, y: 0 };
+  private thirdPersonDistance = 5.2;
 
   // Time & Day/Night Cycle
   private timeOfDay = 8.5; // Starts at 8:30 AM
@@ -1621,6 +1632,50 @@ export class GameWorld {
       blade.position.y = 0.78;
       blade.castShadow = true;
       sword.add(blade);
+    } else if (swordId === 'god_blade') {
+      // Celestial Admin Weapon: Gold & Violet Crystal with Pulsing Aura
+      const handleGeom = new THREE.CylinderGeometry(0.04, 0.04, 0.45, 8);
+      const handleMat = new THREE.MeshStandardMaterial({
+        color: 0xffd700,
+        metalness: 0.9,
+        roughness: 0.1,
+      });
+      const handle = new THREE.Mesh(handleGeom, handleMat);
+      handle.position.y = -0.18;
+      sword.add(handle);
+
+      const pommelGeom = new THREE.SphereGeometry(0.08, 16, 16);
+      const pommelMat = new THREE.MeshStandardMaterial({
+        color: 0xc084fc,
+        emissive: 0xa855f7,
+        emissiveIntensity: 1.5,
+      });
+      const pommel = new THREE.Mesh(pommelGeom, pommelMat);
+      pommel.position.y = -0.42;
+      sword.add(pommel);
+
+      const guardGeom = new THREE.BoxGeometry(0.48, 0.1, 0.14);
+      const guardMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        metalness: 0.8,
+        roughness: 0.2,
+      });
+      const guard = new THREE.Mesh(guardGeom, guardMat);
+      guard.position.y = 0.07;
+      sword.add(guard);
+
+      const bladeGeom = new THREE.BoxGeometry(0.18, 1.45, 0.05);
+      const bladeMat = new THREE.MeshStandardMaterial({
+        color: 0xf3e8ff,
+        emissive: 0xa855f7,
+        emissiveIntensity: 2.5,
+        roughness: 0.1,
+        metalness: 0.5,
+      });
+      const blade = new THREE.Mesh(bladeGeom, bladeMat);
+      blade.position.y = 0.84;
+      blade.castShadow = true;
+      sword.add(blade);
     }
 
     return sword;
@@ -2302,14 +2357,65 @@ export class GameWorld {
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('resize', this.onResize);
 
+    // Mouse & Pointer listeners for Camera rotation & interaction
+    window.addEventListener('mousedown', this.onMouseDown);
+    window.addEventListener('mouseup', this.onMouseUp);
+    window.addEventListener('mousemove', this.onMouseMove);
+    window.addEventListener('wheel', this.onWheel, { passive: false });
+    window.addEventListener('contextmenu', this.onContextMenu);
+    window.addEventListener('blur', this.onWindowBlur);
+
     this.renderer.domElement.addEventListener('click', () => {
-      if (document.pointerLockElement !== this.renderer.domElement) {
+      // If player clicks canvas, optionally lock pointer for pure FPS or continue with right-click drag
+      if (document.pointerLockElement !== this.renderer.domElement && this.viewMode === 'first_person') {
         this.renderer.domElement.requestPointerLock();
       }
     });
-
-    window.addEventListener('mousemove', this.onMouseMove);
   }
+
+  private onContextMenu = (e: MouseEvent) => {
+    // Prevent browser context menu when right-clicking to rotate camera
+    e.preventDefault();
+  };
+
+  private onMouseDown = (e: MouseEvent) => {
+    // Button 2 = Right Click (Roblox style camera orbit drag)
+    if (e.button === 2) {
+      e.preventDefault();
+      this.isRightMouseDown = true;
+      this.lastMousePos.x = e.clientX;
+      this.lastMousePos.y = e.clientY;
+    } else if (e.button === 0) {
+      // Button 0 = Left Click (Attack / Swing Sword)
+      this.isLeftMouseDown = true;
+      if (this.equippedSwordId) {
+        this.swingSword();
+      }
+    }
+  };
+
+  private onMouseUp = (e: MouseEvent) => {
+    if (e.button === 2) {
+      this.isRightMouseDown = false;
+    } else if (e.button === 0) {
+      this.isLeftMouseDown = false;
+    }
+  };
+
+  private onWindowBlur = () => {
+    this.isRightMouseDown = false;
+    this.isLeftMouseDown = false;
+    this.keyState = {};
+    this.isSprinting = false;
+  };
+
+  private onWheel = (e: WheelEvent) => {
+    if (this.viewMode === 'third_person') {
+      e.preventDefault();
+      const zoomDelta = e.deltaY * 0.005;
+      this.thirdPersonDistance = Math.max(2.2, Math.min(14.0, this.thirdPersonDistance + zoomDelta));
+    }
+  };
 
   private onKeyDown = (e: KeyboardEvent) => {
     this.keyState[e.code] = true;
@@ -2359,11 +2465,30 @@ export class GameWorld {
   };
 
   private onMouseMove = (e: MouseEvent) => {
-    if (document.pointerLockElement === this.renderer.domElement) {
-      const factor = 0.0022 * this.mouseSensitivity;
-      this.yaw -= e.movementX * factor;
-      this.pitch -= e.movementY * factor;
+    const isPointerLocked = document.pointerLockElement === this.renderer.domElement;
+    const isRightDragging = this.isRightMouseDown || (e.buttons & 2) !== 0;
+
+    // Check if mouse should rotate camera
+    if (isPointerLocked || isRightDragging) {
+      let movementX = e.movementX;
+      let movementY = e.movementY;
+
+      // Fallback calculation if movementX/Y is 0 or unavailable
+      if (movementX === undefined || movementY === undefined || (movementX === 0 && movementY === 0 && this.lastMousePos.x !== 0)) {
+        movementX = e.clientX - this.lastMousePos.x;
+        movementY = e.clientY - this.lastMousePos.y;
+      }
+
+      this.lastMousePos.x = e.clientX;
+      this.lastMousePos.y = e.clientY;
+
+      const factor = 0.0028 * this.mouseSensitivity;
+      this.yaw -= movementX * factor;
+      this.pitch -= movementY * factor;
       this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
+    } else {
+      this.lastMousePos.x = e.clientX;
+      this.lastMousePos.y = e.clientY;
     }
   };
 
@@ -2391,10 +2516,26 @@ export class GameWorld {
     this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
   }
 
+  public setUnlimitedPowers(powers: {
+    isGodMode?: boolean;
+    superSpeed?: boolean;
+    superJump?: boolean;
+    superMagnet?: boolean;
+    freeTemplePass?: boolean;
+  }) {
+    if (powers.isGodMode !== undefined) this.isGodMode = powers.isGodMode;
+    if (powers.superSpeed !== undefined) this.superSpeed = powers.superSpeed;
+    if (powers.superJump !== undefined) this.superJump = powers.superJump;
+    if (powers.superMagnet !== undefined) this.superMagnet = powers.superMagnet;
+    if (powers.freeTemplePass !== undefined) this.freeTemplePass = powers.freeTemplePass;
+  }
+
   public jump() {
     if (this.isOnGround) {
       let jumpMult = 1.0;
       if (this.equippedSwordId === 'fire_greatsword') jumpMult *= 1.3;
+      if (this.equippedSwordId === 'god_blade') jumpMult *= 1.8;
+      if (this.superJump) jumpMult *= 1.9;
       if (this.buffs.jumpTimeRemaining > 0) jumpMult *= this.buffs.jumpMultiplier;
 
       this.playerVel.y = 9.5 * jumpMult;
@@ -2511,7 +2652,7 @@ export class GameWorld {
     this.isSwingingSword = true;
     this.swingProgress = 0;
 
-    const isLaser = this.equippedSwordId === 'neon_katana';
+    const isLaser = this.equippedSwordId === 'neon_katana' || this.equippedSwordId === 'god_blade';
     soundEngine.playSwordSlashSound(isLaser);
     this.triggerHaptic(20);
 
@@ -2519,7 +2660,7 @@ export class GameWorld {
     this.camera.getWorldDirection(lookDir);
 
     // Check hit against zombies or boss
-    const damage = this.equippedSwordId === 'neon_katana' ? 3 : this.equippedSwordId === 'fire_greatsword' ? 2 : 1;
+    const damage = this.equippedSwordId === 'god_blade' ? 10 : this.equippedSwordId === 'neon_katana' ? 3 : this.equippedSwordId === 'fire_greatsword' ? 2 : 1;
     if (this.currentWorld === 'mayan_boss') {
       this.mayanBossSystem?.checkSwordHit(this.playerPos, lookDir, damage);
     } else {
@@ -2529,6 +2670,13 @@ export class GameWorld {
 
   public tryEnterMayanTemple(): boolean {
     if (this.currentWorld === 'mayan_boss') return false;
+
+    if (this.freeTemplePass) {
+      soundEngine.playTempleGateOpenSound();
+      this.teleportToWorld('mayan_boss');
+      this.callbacks.onToast?.('👑 ¡Pase VIP Maya! Acceso gratuito a la Cripta Maya');
+      return true;
+    }
 
     const hasPaid = this.callbacks.onSpendCoins ? this.callbacks.onSpendCoins(500) : false;
     if (!hasPaid) {
@@ -2783,6 +2931,8 @@ export class GameWorld {
     if (this.equippedSwordId === 'wood_sword') speedBonus *= 1.15;
     if (this.equippedSwordId === 'neon_katana') speedBonus *= 1.35;
     if (this.equippedSwordId === 'fire_greatsword') speedBonus *= 1.5;
+    if (this.equippedSwordId === 'god_blade') speedBonus *= 2.0;
+    if (this.superSpeed) speedBonus *= 1.9;
     if (this.buffs.speedTimeRemaining > 0) speedBonus *= this.buffs.speedMultiplier;
 
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
@@ -3038,6 +3188,14 @@ export class GameWorld {
     this.zombieSystem?.update(dt, this.playerPos, this.currentWorld, isNight, (knockDir, isSugarZombie) => {
       if (this.isPlayerDead || this.playerInvincibleTimer > 0) return;
 
+      if (this.isGodMode) {
+        this.playerInvincibleTimer = 0.5;
+        this.playerVel.x = knockDir.x * 4;
+        this.playerVel.z = knockDir.z * 4;
+        this.callbacks.onToast?.('🛡️ ¡Modo Dios: Daño de Zombi bloqueado!');
+        return;
+      }
+
       this.playerInvincibleTimer = 0.85; // 0.85s invulnerability grace
       this.playerVel.x = knockDir.x * 12;
       this.playerVel.z = knockDir.z * 12;
@@ -3167,8 +3325,8 @@ export class GameWorld {
     }
 
     const collectRadius = 1.6;
-    const isMagnetActive = this.buffs.magnetTimeRemaining > 0;
-    const magnetRadius = this.buffs.magnetRadius;
+    const isMagnetActive = this.superMagnet || this.buffs.magnetTimeRemaining > 0;
+    const magnetRadius = this.superMagnet ? 50.0 : this.buffs.magnetRadius;
 
     this.coins.forEach((c) => {
       if (c.data.collected) return;
@@ -3450,7 +3608,7 @@ export class GameWorld {
       this.camera.rotation.x = this.pitch;
     } else {
       this.playerMesh.visible = true;
-      const camDist = 5.2;
+      const camDist = this.thirdPersonDistance;
       const camHeight = 1.45;
 
       const backX = Math.sin(this.yaw) * Math.cos(this.pitch) * camDist;
@@ -3480,7 +3638,12 @@ export class GameWorld {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('mousedown', this.onMouseDown);
+    window.removeEventListener('mouseup', this.onMouseUp);
     window.removeEventListener('mousemove', this.onMouseMove);
+    window.removeEventListener('wheel', this.onWheel);
+    window.removeEventListener('contextmenu', this.onContextMenu);
+    window.removeEventListener('blur', this.onWindowBlur);
 
     if (this.renderer.domElement && this.renderer.domElement.parentElement) {
       this.renderer.domElement.parentElement.removeChild(this.renderer.domElement);
