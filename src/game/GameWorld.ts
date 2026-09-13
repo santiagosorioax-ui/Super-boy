@@ -7,6 +7,7 @@ import { MayanBossSystem } from './MayanBossSystem';
 import { MayanTempleBuilder, MayanTempleElements } from './MayanTempleBuilder';
 import { WeatherSystem } from './WeatherSystem';
 import { createCustomAvatar, AvatarInstance, AvatarLimbs } from './AvatarCustomizer';
+import { ValleyStructuresBuilder, ValleyStructuresResult } from './ValleyStructuresBuilder';
 
 export interface WorldCallbacks {
   onCoinCollected: (coin: CoinData, remaining: number, total: number, combo: number) => void;
@@ -32,6 +33,7 @@ export interface WorldCallbacks {
   onAddCoins?: (amount: number) => void;
   onToast?: (message: string) => void;
   onFlightChange?: (isFlying: boolean) => void;
+  onNearCampfire?: (isNear: boolean) => void;
   onWorldReady?: () => void;
 }
 
@@ -192,6 +194,18 @@ export class GameWorld {
     { x: -90, z: 20, radius: 18, height: 7.2 },
     { x: -105, z: -55, radius: 20, height: 8.2 },
     { x: -110, z: 70, radius: 18, height: 7.6 },
+
+    // Expanded Outer Horizon Ridges & Highlands (Gran Valle Expandido)
+    { x: 140, z: -50, radius: 25, height: 9.5 },
+    { x: 155, z: 60, radius: 24, height: 9.0 },
+    { x: 130, z: 130, radius: 26, height: 10.2 },
+    { x: -50, z: 155, radius: 25, height: 9.8 },
+    { x: 30, z: 165, radius: 28, height: 10.5 },
+    { x: -145, z: 95, radius: 24, height: 9.2 },
+    { x: -160, z: -30, radius: 26, height: 10.0 },
+    { x: -140, z: -120, radius: 27, height: 10.8 },
+    { x: 10, z: -165, radius: 28, height: 11.0 },
+    { x: 95, z: -145, radius: 25, height: 10.2 },
   ];
 
   // Coins
@@ -199,6 +213,11 @@ export class GameWorld {
   private comboCount = 0;
   private comboTimer = 0;
   private collectedCount = 0;
+
+  // Valley Structures & Campfires
+  private valleyStructures: ValleyStructuresResult | null = null;
+  private isNearCampfire = false;
+  private campfireHealTimer = 0;
 
   // Particle Effects (collecting, springs, sword slash)
   private particleSystems: { points: THREE.Points; velocities: THREE.Vector3[]; age: number; maxAge: number }[] = [];
@@ -506,8 +525,8 @@ export class GameWorld {
 
   // --- WORLD BUILDER ---
   private buildWorld() {
-    // 1. Terrain Ground (48x48 vertex grid for silky smooth expansive hill curves)
-    const groundGeom = new THREE.PlaneGeometry(320, 320, 48, 48);
+    // 1. Terrain Ground (Expanded 480x480 grand valley with smooth rolling contours)
+    const groundGeom = new THREE.PlaneGeometry(480, 480, 56, 56);
     const posAttr = groundGeom.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
       const x = posAttr.getX(i);
@@ -533,7 +552,7 @@ export class GameWorld {
     // 1.1 Grassy Hills & Landscape Mounds with Hitboxes
     this.buildHillsAndMounds();
 
-    // 1.2 Perimeter Mountain Walls with Thick Barriers (Radius 148)
+    // 1.2 Perimeter Mountain Walls with Thick Barriers (Radius 148 -> 220)
     this.buildPerimeterHills();
 
     // 2. Central Sanctuary / Stone Plaza
@@ -591,6 +610,17 @@ export class GameWorld {
     // 5. Trees, Rocks, Foliage, and Lanterns (Non-overlapping)
     this.buildFoliage();
 
+    // 5.1 Giant Ancient Trees, Campfires (with Spawn Fire), Watchtowers, Arches & Bridges
+    this.valleyStructures = ValleyStructuresBuilder.build(
+      this.scene,
+      (x, z) => this.getTerrainHeight(x, z)
+    );
+    this.colliders.push(...this.valleyStructures.colliders);
+    this.platforms.push(...this.valleyStructures.platforms);
+    this.springPads.push(...this.valleyStructures.springPads);
+    this.coins.push(...this.valleyStructures.coins);
+    this.lanterns.push(...this.valleyStructures.lanterns);
+
     // 6. Build Candy World and Portals
     this.candyWorldElements = CandyWorldBuilder.build(
       this.scene,
@@ -606,7 +636,7 @@ export class GameWorld {
     this.buildShopBuilding(608.0, 0.4, 588.0, 'candy');
     this.buildMultiplierShopBuilding(592.0, 0.4, 588.0, 'candy');
 
-    // 7. Initialize Zombies
+    // 7. Initialize Zombies & Register Campfire Safe Zones
     this.zombieSystem = new ZombieSystem(
       this.scene,
       (x, z) => this.getTerrainHeight(x, z),
@@ -626,6 +656,9 @@ export class GameWorld {
         },
       }
     );
+    if (this.valleyStructures) {
+      this.zombieSystem.setCampfires(this.valleyStructures.campfires);
+    }
   }
 
   private buildHillsAndMounds() {
@@ -658,15 +691,15 @@ export class GameWorld {
 
   private buildPerimeterHills() {
     const hillMat = new THREE.MeshStandardMaterial({ color: 0x245523, roughness: 0.9, flatShading: true });
-    const wallCount = 48;
-    const radius = 148;
+    const wallCount = 64;
+    const radius = 220;
 
     for (let i = 0; i < wallCount; i++) {
       const angle = (i / wallCount) * Math.PI * 2;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
-      const height = 26 + (i % 6) * 4;
-      const width = 28 + (i % 4) * 4;
+      const height = 36 + (i % 6) * 5;
+      const width = 38 + (i % 4) * 6;
 
       const hillGeom = new THREE.ConeGeometry(width, height, 8);
       const hill = new THREE.Mesh(hillGeom, hillMat);

@@ -43,6 +43,7 @@ export class ZombieSystem {
   private getTerrainHeightFn: (x: number, z: number) => number;
   private nextZombieId = 1;
   private isNightActive = false;
+  private campfires: { pos: THREE.Vector3; safeRadius: number }[] = [];
 
   constructor(
     scene: THREE.Scene,
@@ -357,6 +358,20 @@ export class ZombieSystem {
     return entity;
   }
 
+  public setCampfires(campfires: { pos: THREE.Vector3; safeRadius: number }[]) {
+    this.campfires = campfires;
+  }
+
+  public isPlayerSafeNearCampfire(playerPos: THREE.Vector3): boolean {
+    for (const cf of this.campfires) {
+      const dist = Math.hypot(playerPos.x - cf.pos.x, playerPos.z - cf.pos.z);
+      if (dist <= cf.safeRadius) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public update(
     dt: number,
     playerPos: THREE.Vector3,
@@ -365,6 +380,9 @@ export class ZombieSystem {
     onPlayerAttack: (knockDir: THREE.Vector3, isSugarZombie: boolean) => void
   ) {
     if (currentDimension === 'mayan_boss') return;
+
+    // Check if player is safely resting near a campfire (Zombies cannot attack in campfires!)
+    const isPlayerInCampfireSafeZone = this.isPlayerSafeNearCampfire(playerPos);
     // 1. Day / Night Transition Handling
     if (this.isNightActive !== isNight) {
       this.isNightActive = isNight;
@@ -469,8 +487,17 @@ export class ZombieSystem {
 
       let moveSpeed = 0;
 
-      if (distSq < aggroRadiusSq) {
-        // CHASE MODE
+      // Check if this zombie is approaching too close to any campfire
+      let isZombieNearAnyCampfire = false;
+      for (const cf of this.campfires) {
+        if (Math.hypot(z.pos.x - cf.pos.x, z.pos.z - cf.pos.z) < cf.safeRadius + 1.2) {
+          isZombieNearAnyCampfire = true;
+          break;
+        }
+      }
+
+      if (distSq < aggroRadiusSq && !isPlayerInCampfireSafeZone && !isZombieNearAnyCampfire) {
+        // CHASE MODE (Normal)
         z.state = 'chase';
         const targetRotY = Math.atan2(dx, dz);
         let diff = targetRotY - z.rotY;
@@ -480,7 +507,7 @@ export class ZombieSystem {
 
         moveSpeed = z.isSugarZombie ? 3.8 : 3.2;
 
-        // Attack Player Check with cooldown
+        // Attack Player Check with cooldown (CANNOT attack if player is in campfire safe zone)
         if (distSq < hitPlayerRadiusSq && Math.abs(playerPos.y - z.pos.y) < 1.7 && z.attackCooldown <= 0) {
           z.attackCooldown = 1.35; // 1.35s between hits from this zombie
           const knockDir = new THREE.Vector3(dx, 0, dz).normalize();
@@ -490,6 +517,12 @@ export class ZombieSystem {
           z.vel.x = -knockDir.x * 4.0;
           z.vel.z = -knockDir.z * 4.0;
         }
+      } else if (isPlayerInCampfireSafeZone || isZombieNearAnyCampfire) {
+        // RECOIL / FEAR OF CAMPFIRE: Zombie senses the blazing fire and retreats/paces around
+        z.state = 'wander';
+        // Turn away from the nearest campfire or player
+        z.rotY += Math.PI * 0.6 * dt;
+        moveSpeed = 1.0;
       } else {
         // WANDER MODE
         z.state = 'wander';

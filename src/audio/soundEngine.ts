@@ -974,6 +974,34 @@ class SoundEngine {
     osc.stop(t + 0.1);
   }
 
+  public playCampfireHeal() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    // Warm gentle rising arpeggio for soothing campfire health restoration
+    const notes = [329.63, 392.00, 493.88, 587.33]; // E4, G4, B4, D5 (Warm Em7)
+    notes.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.08);
+
+      gain.gain.setValueAtTime(0, t + idx * 0.08);
+      gain.gain.linearRampToValueAtTime(0.12, t + idx * 0.08 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.08 + 0.35);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(t + idx * 0.08);
+      osc.stop(t + idx * 0.08 + 0.38);
+    });
+  }
+
   public playTeleportSound() {
     this.init();
     this.resume();
