@@ -693,6 +693,50 @@ class SoundEngine {
     osc.stop(t + 0.36);
   }
 
+  public playFlightToggleSound(isFlying: boolean) {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    if (isFlying) {
+      // Ascending celestial whoosh for flight activation
+      const notes = [261.63, 329.63, 392.00, 523.25, 659.25]; // C E G C E
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t + idx * 0.05);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, t + idx * 0.05 + 0.2);
+
+        gain.gain.setValueAtTime(0.12, t + idx * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.05 + 0.25);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain!);
+
+        osc.start(t + idx * 0.05);
+        osc.stop(t + idx * 0.05 + 0.26);
+      });
+    } else {
+      // Soft landing whoosh
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(380, t);
+      osc.frequency.exponentialRampToValueAtTime(110, t + 0.2);
+
+      gain.gain.setValueAtTime(0.15, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(t);
+      osc.stop(t + 0.23);
+    }
+  }
+
   public playFootstep() {
     if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
     const t = this.ctx.currentTime;
@@ -1429,6 +1473,157 @@ class SoundEngine {
 
       offset += n.d * 0.75;
     });
+  }
+
+  /**
+   * Weather Sound: Dynamic Rain Droplets and Overcast Ambience
+   */
+  public playRainAmbience(intensity: number = 0.8) {
+    if (!this.ctx || !this.ambientGain || this.ambientVolume <= 0.01) return;
+    try {
+      const t = this.ctx.currentTime;
+      const duration = 1.2;
+      const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // Filtered noise with tiny drop peaks
+      for (let i = 0; i < bufferSize; i++) {
+        const white = (Math.random() * 2 - 1);
+        const dropImpulse = Math.random() < 0.008 ? (Math.random() * 2 - 1) * 3 : 0;
+        data[i] = (white + dropImpulse) * 0.25;
+      }
+
+      const noiseSource = this.ctx.createBufferSource();
+      noiseSource.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1400 + intensity * 1800, t);
+      filter.Q.setValueAtTime(0.8, t);
+
+      const gain = this.ctx.createGain();
+      const vol = Math.min(0.12, 0.03 + intensity * 0.07);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(vol, t + 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+      noiseSource.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ambientGain);
+
+      noiseSource.start(t);
+      noiseSource.stop(t + duration);
+    } catch {
+      // Audio safety
+    }
+  }
+
+  /**
+   * Weather Sound: Distant Deep Thunder Clap
+   */
+  public playThunder() {
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0.01) return;
+    try {
+      const t = this.ctx.currentTime;
+      const duration = 2.8;
+
+      // Low frequency rumble oscillator
+      const osc = this.ctx.createOscillator();
+      const oscGain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(80, t);
+      osc.frequency.exponentialRampToValueAtTime(35, t + duration);
+
+      oscGain.gain.setValueAtTime(0.001, t);
+      oscGain.gain.linearRampToValueAtTime(0.28, t + 0.05);
+      oscGain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+
+      osc.connect(oscGain);
+      oscGain.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + duration);
+
+      // Lowpass noise crackle for thunder crack
+      const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      let lastOut = 0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        lastOut = lastOut * 0.88 + white * 0.12;
+        data[i] = lastOut;
+      }
+
+      const noiseSource = this.ctx.createBufferSource();
+      noiseSource.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(450, t);
+      filter.frequency.exponentialRampToValueAtTime(90, t + duration);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.001, t);
+      noiseGain.gain.linearRampToValueAtTime(0.35, t + 0.03);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+
+      noiseSource.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.sfxGain);
+
+      noiseSource.start(t);
+      noiseSource.stop(t + duration);
+    } catch {
+      // Audio safety
+    }
+  }
+
+  /**
+   * Weather Sound: Howling Strong Wind Gust
+   */
+  public playWindGust(strength: number = 1.0) {
+    if (!this.ctx || !this.ambientGain || this.ambientVolume <= 0.01) return;
+    try {
+      const t = this.ctx.currentTime;
+      const duration = 2.6;
+      const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      let lastOut = 0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        lastOut = lastOut * 0.82 + white * 0.18;
+        data[i] = lastOut;
+      }
+
+      const noiseSource = this.ctx.createBufferSource();
+      noiseSource.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      const fCenter = 420 + strength * 350;
+      filter.frequency.setValueAtTime(fCenter * 0.7, t);
+      filter.frequency.linearRampToValueAtTime(fCenter * 1.35, t + duration * 0.45);
+      filter.frequency.exponentialRampToValueAtTime(fCenter * 0.6, t + duration);
+      filter.Q.setValueAtTime(2.6, t);
+
+      const gain = this.ctx.createGain();
+      const vol = Math.min(0.18, 0.04 + strength * 0.1);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(vol, t + duration * 0.35);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+
+      noiseSource.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ambientGain);
+
+      noiseSource.start(t);
+      noiseSource.stop(t + duration);
+    } catch {
+      // Audio safety
+    }
   }
 }
 

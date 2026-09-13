@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameWorld } from './game/GameWorld';
 import { soundEngine } from './audio/soundEngine';
-import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier, ControlDevice, UserProfile } from './types';
+import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier, ControlDevice, UserProfile, WeatherState, WeatherType } from './types';
 import { HUD } from './components/HUD';
 import { SettingsModal } from './components/SettingsModal';
 import { VictoryModal } from './components/VictoryModal';
@@ -15,8 +15,12 @@ import { ShopModal } from './components/ShopModal';
 import { MultiplierShopModal } from './components/MultiplierShopModal';
 import { DeathModal } from './components/DeathModal';
 import { StartScreen } from './components/StartScreen';
+import { LoadingScreen } from './components/LoadingScreen';
 import { LeaderboardModal } from './components/LeaderboardModal';
 import { VipProfileModal } from './components/VipProfileModal';
+import { WardrobeModal } from './components/WardrobeModal';
+import { DEFAULT_CUSTOMIZATION } from './data/clothingCatalog';
+import { PlayerCustomization } from './types';
 import { auth, googleProvider } from './firebase/config';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { saveUserProgress, loadUserProgress } from './firebase/gameSync';
@@ -27,11 +31,12 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
 
-  // Firebase Auth user state
+  // Firebase Auth user state: Defaults to Santiago VIP (santiagosorioax@gmail.com)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isVipModalOpen, setIsVipModalOpen] = useState(false);
-  const isVip = currentUser?.email?.toLowerCase() === VIP_GMAIL.toLowerCase();
+  // Default to VIP for Santiago so owner has full access in preview, and protect if non-VIP account logs in
+  const isVip = !currentUser || currentUser.email?.toLowerCase() === VIP_GMAIL.toLowerCase();
 
   const [vipProfile, setVipProfile] = useState<UserProfile>({
     email: VIP_GMAIL,
@@ -44,6 +49,22 @@ export default function App() {
     superJump: true,
     superMagnet: true,
     freeTemplePass: true,
+    flyMode: false,
+  });
+
+  const [isFlying, setIsFlying] = useState(false);
+  const [isWorldReady, setIsWorldReady] = useState(false);
+
+  // Loading screen state for game start and world/structure transitions
+  const [loadingState, setLoadingState] = useState<{
+    isOpen: boolean;
+    target?: WorldDimension | 'game_start' | 'structure';
+    title?: string;
+    subtitle?: string;
+    onComplete?: () => void;
+  }>({
+    isOpen: false,
+    target: 'game_start',
   });
 
   // Game state & Device Mode
@@ -78,6 +99,7 @@ export default function App() {
   const [isNearTemple, setIsNearTemple] = useState(false);
   const [templeCost, setTempleCost] = useState(500);
   const [bossState, setBossState] = useState<MayanBossState | null>(null);
+  const [weatherState, setWeatherState] = useState<WeatherState | null>(null);
   const [inventory, setInventory] = useState<PlayerInventory>({
     coins: 0,
     health: 5,
@@ -99,6 +121,18 @@ export default function App() {
 
   const inventoryRef = useRef(inventory);
   inventoryRef.current = inventory;
+
+  // Clothing & Avatar Customization
+  const [customization, setCustomization] = useState<PlayerCustomization>(() => {
+    try {
+      const saved = localStorage.getItem('superboy_customization');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return DEFAULT_CUSTOMIZATION;
+  });
+  const customizationRef = useRef(customization);
+  customizationRef.current = customization;
+  const [isWardrobeOpen, setIsWardrobeOpen] = useState(false);
 
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -156,6 +190,7 @@ export default function App() {
       isGodMode: true,
     }));
     if (worldRef.current) {
+      worldRef.current.setVip(true);
       worldRef.current.setUnlimitedPowers({
         isGodMode: true,
         superSpeed: true,
@@ -172,8 +207,11 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      const isUserVip = user?.email?.toLowerCase() === VIP_GMAIL.toLowerCase();
+      if (worldRef.current) {
+        worldRef.current.setVip(isUserVip);
+      }
       if (user) {
-        const isUserVip = user.email?.toLowerCase() === VIP_GMAIL.toLowerCase();
         if (isUserVip) {
           applyVipPerks();
           return;
@@ -197,6 +235,12 @@ export default function App() {
             if (saved.zombiesDefeated) {
               setZombiesDefeated(saved.zombiesDefeated);
             }
+            if (saved.customization) {
+              setCustomization(saved.customization);
+              if (worldRef.current) {
+                worldRef.current.setCustomization(saved.customization);
+              }
+            }
             showToast(`☁️ ¡Progreso cargado de Firebase (${saved.coins} monedas)!`);
           }
         } catch (err) {
@@ -207,6 +251,25 @@ export default function App() {
 
     return () => unsubscribe();
   }, [applyVipPerks, showToast]);
+
+  // Clothing & Customization Handlers
+  const handleSpendCoins = useCallback((amount: number): boolean => {
+    if (inventoryRef.current.coins >= amount) {
+      setInventory((prev) => ({ ...prev, coins: prev.coins - amount }));
+      return true;
+    }
+    return false;
+  }, []);
+
+  const handleUpdateCustomization = useCallback((newCust: PlayerCustomization) => {
+    setCustomization(newCust);
+    try {
+      localStorage.setItem('superboy_customization', JSON.stringify(newCust));
+    } catch (e) {}
+    if (worldRef.current) {
+      worldRef.current.setCustomization(newCust);
+    }
+  }, []);
 
   // Handle Google Sign In
   const handleSignInGoogle = async () => {
@@ -233,13 +296,13 @@ export default function App() {
   useEffect(() => {
     if (currentUser) {
       const timeout = setTimeout(() => {
-        saveUserProgress(bestScore, inventory, zombiesDefeated).catch((err) => {
+        saveUserProgress(bestScore, inventory, zombiesDefeated, customization).catch((err) => {
           console.warn('Auto-save error:', err);
         });
       }, 2000);
       return () => clearTimeout(timeout);
     }
-  }, [currentUser, bestScore, inventory.coins, inventory.equippedSwordId, inventory.playerMultiplier, zombiesDefeated]);
+  }, [currentUser, bestScore, inventory.coins, inventory.equippedSwordId, inventory.playerMultiplier, zombiesDefeated, customization]);
 
   // Initialize Game World
   useEffect(() => {
@@ -266,6 +329,9 @@ export default function App() {
       onTimeUpdate: (newTimeState: TimeState) => {
         setTimeState(newTimeState);
         soundEngine.setNightMood(newTimeState.period === 'night' || newTimeState.period === 'sunset');
+      },
+      onWeatherUpdate: (newWeather: WeatherState) => {
+        setWeatherState(newWeather);
       },
       onJump: () => {
         // Jump triggered
@@ -323,13 +389,20 @@ export default function App() {
       onWorldChange: (newWorld) => {
         setCurrentDimension(newWorld);
         soundEngine.setDimension(newWorld);
-        if (newWorld === 'candy') {
-          showToast('🍭 ¡Bienvenido al Mundo de Caramelo!');
-        } else if (newWorld === 'mayan_boss') {
-          showToast('🏛️ ¡Entraste a la Cripta Maya! ¡Derrota al Rey Zombi!');
-        } else {
-          showToast('🌿 Regresaste al Valle Principal');
-        }
+
+        setLoadingState({
+          isOpen: true,
+          target: newWorld,
+          onComplete: () => {
+            if (newWorld === 'candy') {
+              showToast('🍭 ¡Bienvenido al Mundo de Caramelo!');
+            } else if (newWorld === 'mayan_boss') {
+              showToast('🏛️ ¡Entraste a la Cripta Maya! ¡Derrota al Rey Zombi!');
+            } else {
+              showToast('🌿 Regresaste al Valle Principal');
+            }
+          },
+        });
       },
       onZombieDefeated: (points, remaining) => {
         setScore((prev) => prev + points);
@@ -352,15 +425,25 @@ export default function App() {
       onVictory: () => {
         setIsVictoryOpen(true);
       },
+      onFlightChange: (flying: boolean) => {
+        setIsFlying(flying);
+        setVipProfile((prev) => ({ ...prev, flyMode: flying }));
+      },
+      onWorldReady: () => {
+        setIsWorldReady(true);
+      },
     });
 
     worldRef.current = world;
+    world.setCustomization(customizationRef.current);
+    world.setVip(isVip);
     world.setUnlimitedPowers({
-      isGodMode: false,
-      superSpeed: false,
-      superJump: false,
-      superMagnet: false,
-      freeTemplePass: false,
+      isGodMode: isVip,
+      superSpeed: isVip,
+      superJump: isVip,
+      superMagnet: isVip,
+      freeTemplePass: isVip,
+      flyMode: false,
     });
     if (inventoryRef.current.equippedSwordId) {
       world.setEquippedSword(inventoryRef.current.equippedSwordId);
@@ -428,12 +511,24 @@ export default function App() {
     if (isMusicOn) {
       soundEngine.startMusic();
     }
-    setIsPlaying(true);
-    showToast(
-      activeMode === 'mobile'
-        ? '📱 Modo Celular Iniciado: Botones y Joystick Táctiles Activos'
-        : '💻 Modo PC Iniciado: Teclado y Ratón Activos'
-    );
+
+    setLoadingState({
+      isOpen: true,
+      target: 'game_start',
+      title: '⚔️ INICIANDO SUPER BOY 3D',
+      subtitle:
+        activeMode === 'mobile'
+          ? 'Preparando controles táctiles y mundo...'
+          : 'Preparando teclado, ratón y mundo...',
+      onComplete: () => {
+        setIsPlaying(true);
+        showToast(
+          activeMode === 'mobile'
+            ? '📱 Modo Celular Iniciado: Botones y Joystick Táctiles Activos'
+            : '💻 Modo PC Iniciado: Teclado y Ratón Activos'
+        );
+      },
+    });
   }, [controlMode, isMusicOn, showToast]);
 
   // Handle Quick Toggle of Control Mode (PC vs Celular) during gameplay
@@ -494,6 +589,24 @@ export default function App() {
   const handleJump = () => {
     if (worldRef.current) {
       worldRef.current.jump();
+    }
+  };
+
+  // Handle VIP Flight & Noclip Mode
+  const handleToggleFlight = () => {
+    if (!isVip) {
+      showToast('🔒 El modo vuelo y noclip es exclusivo para Santiago VIP (santiagosorioax@gmail.com)');
+      return;
+    }
+    if (worldRef.current) {
+      worldRef.current.toggleFlight();
+    }
+  };
+
+  const handleFlyVertical = (dir: -1 | 0 | 1) => {
+    if (!isVip) return;
+    if (worldRef.current) {
+      worldRef.current.setFlyVertical(dir);
     }
   };
 
@@ -626,6 +739,7 @@ export default function App() {
         superJump: updated.superJump,
         superMagnet: updated.superMagnet,
         freeTemplePass: updated.freeTemplePass,
+        flyMode: updated.flyMode,
       });
     }
     showToast('✨ Superpoderes VIP actualizados');
@@ -667,7 +781,11 @@ export default function App() {
     if (worldRef.current) {
       worldRef.current.teleportTo(dest);
       setIsVipModalOpen(false);
-      showToast(`🌀 Teletransportado a ${dest}`);
+      if (dest === 'mayan_temple' || dest === 'boss_arena' || dest === 'candy_portal') {
+        showToast('🏛️ ¡Teletransportado al Templo Maya (Rey Zombi)!');
+      } else {
+        showToast(`🌀 Teletransportado a ${dest}`);
+      }
     }
   };
 
@@ -866,6 +984,7 @@ export default function App() {
           currentUser={currentUser}
           onSignInGoogle={handleSignInGoogle}
           onSignOut={handleSignOut}
+          onOpenWardrobe={() => setIsWardrobeOpen(true)}
         />
       )}
 
@@ -876,6 +995,8 @@ export default function App() {
           collectedCoins={collectedCoins}
           totalCoins={totalCoins}
           timeState={timeState}
+          weatherState={weatherState}
+          onSelectWeather={(type) => worldRef.current?.setWeather(type)}
           combo={combo}
           fps={fps}
           showFps={settings.showFps}
@@ -897,10 +1018,14 @@ export default function App() {
           zombiesDefeated={zombiesDefeated}
           currentUser={currentUser}
           isVip={isVip}
+          isFlying={isFlying}
+          onToggleFlight={handleToggleFlight}
+          onFlyVertical={handleFlyVertical}
           onOpenVipProfile={() => setIsVipModalOpen(true)}
           onSignInGoogle={handleSignInGoogle}
           onSignOut={handleSignOut}
           onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
+          onOpenWardrobe={() => setIsWardrobeOpen(true)}
           onToggleMusic={handleToggleMusic}
           onToggleFlashlight={handleToggleFlashlight}
           onToggleViewMode={handleToggleViewMode}
@@ -910,6 +1035,7 @@ export default function App() {
           onOpenShop={() => setIsShopOpen(true)}
           onOpenMultiplierShop={() => setIsMultiplierShopOpen(true)}
           onReturnToSpawn={handleReturnToSpawn}
+          onTeleportToTemple={() => handleTeleportTo('mayan_temple')}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenHelp={() => setIsHelpOpen(true)}
           onJoyTouchStart={handleJoyTouchStart}
@@ -929,6 +1055,8 @@ export default function App() {
         onClose={() => setIsVipModalOpen(false)}
         user={vipProfile}
         inventory={inventory}
+        currentWeather={weatherState?.type}
+        onSetWeather={(type) => worldRef.current?.setWeather(type)}
         onUpdateUser={handleUpdateVipProfile}
         onRefillInfiniteCoins={handleRefillInfiniteCoins}
         onUnlockAllSwords={handleUnlockAllSwords}
@@ -941,6 +1069,16 @@ export default function App() {
         isOpen={isLeaderboardOpen}
         onClose={() => setIsLeaderboardOpen(false)}
         currentScore={score}
+      />
+
+      {/* Wardrobe & Character Clothing Customization Modal */}
+      <WardrobeModal
+        isOpen={isWardrobeOpen}
+        onClose={() => setIsWardrobeOpen(false)}
+        coins={inventory.coins}
+        customization={customization}
+        onSpendCoins={handleSpendCoins}
+        onUpdateCustomization={handleUpdateCustomization}
       />
 
       {/* Shop Modal */}
@@ -994,6 +1132,19 @@ export default function App() {
         coinsLost={coinsLostOnDeath}
         remainingCoins={Math.max(0, inventory.coins - coinsLostOnDeath)}
         onRetry={handleRetryRespawn}
+      />
+
+      {/* Cartoon Loading Screen for Game Start & World/Structure Transitions */}
+      <LoadingScreen
+        isOpen={loadingState.isOpen}
+        target={loadingState.target}
+        title={loadingState.title}
+        subtitle={loadingState.subtitle}
+        isWorldReady={isWorldReady}
+        onFinish={() => {
+          setLoadingState((prev) => ({ ...prev, isOpen: false }));
+          loadingState.onComplete?.();
+        }}
       />
     </div>
   );

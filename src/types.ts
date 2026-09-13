@@ -74,6 +74,7 @@ export interface UserProfile {
   superJump: boolean; // +100% jump height
   superMagnet: boolean; // 50m coin magnet
   freeTemplePass: boolean; // Free entry to Mayan Temple
+  flyMode: boolean; // 🕊️ Modo Vuelo y Noclip (atravesar paredes y super velocidad)
 }
 
 export interface PlayerInventory {
@@ -113,5 +114,56 @@ export interface TimeState {
   period: 'dawn' | 'day' | 'sunset' | 'night';
   formattedTime: string;
   sunHeight: number;
+}
+
+export type WeatherType = 'clear' | 'rain' | 'fog' | 'wind';
+
+export interface WeatherState {
+  type: WeatherType;
+  displayName: string;
+  description: string;
+  durationRemaining: number;
+  totalDuration: number;
+  windDirection: { x: number; z: number }; // normalized vector
+  windSpeed: number; // m/s
+  rainIntensity: number; // 0 to 1
+  fogDensity: number; // density multiplier
+  isSlippery: boolean;
+}
+
+// --- CHARACTER WARDROBE & CUSTOMIZATION ---
+export type CharacterGender = 'boy' | 'girl';
+
+export type ClothingCategory = 'hat' | 'shirt' | 'pants' | 'shoes' | 'backpack';
+
+export interface ClothingItem {
+  id: string;
+  name: string;
+  category: ClothingCategory;
+  price: number; // In coins (0 = free / default)
+  description: string;
+  icon: string;
+  previewColor: string;
+  rarity?: 'common' | 'rare' | 'epic' | 'legendary';
+  badge?: string;
+  // Visual properties for 3D engine
+  modelStyle?: string;
+  primaryColor?: number;
+  secondaryColor?: number;
+  accentColor?: number;
+}
+
+export interface EquippedClothing {
+  hatId: string;
+  shirtId: string;
+  pantsId: string;
+  shoesId: string;
+  backpackId: string;
+}
+
+export interface PlayerCustomization {
+  gender: CharacterGender;
+  equipped: EquippedClothing;
+  ownedItemIds: string[];
 }
 

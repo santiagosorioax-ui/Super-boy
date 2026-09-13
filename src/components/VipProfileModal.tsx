@@ -12,15 +12,21 @@ import {
   CheckCircle2,
   Lock,
   ArrowRight,
-  Maximize2
+  Maximize2,
+  CloudRain,
+  CloudFog,
+  Wind,
+  Sun
 } from 'lucide-react';
-import { UserProfile, PlayerInventory } from '../types';
+import { UserProfile, PlayerInventory, WeatherType } from '../types';
 
 interface VipProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: UserProfile;
   inventory: PlayerInventory;
+  currentWeather?: WeatherType;
+  onSetWeather?: (type: WeatherType) => void;
   onUpdateUser: (updated: UserProfile) => void;
   onRefillInfiniteCoins: () => void;
   onUnlockAllSwords: () => void;
@@ -33,6 +39,8 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
   onClose,
   user,
   inventory,
+  currentWeather,
+  onSetWeather,
   onUpdateUser,
   onRefillInfiniteCoins,
   onUnlockAllSwords,
@@ -41,7 +49,7 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const togglePower = (key: keyof Pick<UserProfile, 'isGodMode' | 'superSpeed' | 'superJump' | 'superMagnet' | 'freeTemplePass' | 'infiniteCoins'>) => {
+  const togglePower = (key: keyof Pick<UserProfile, 'isGodMode' | 'superSpeed' | 'superJump' | 'superMagnet' | 'freeTemplePass' | 'infiniteCoins' | 'flyMode'>) => {
     onUpdateUser({
       ...user,
       [key]: !user[key],
@@ -134,6 +142,33 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
             </h3>
 
             <div className="space-y-2">
+              {/* Fly & Noclip Mode */}
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-yellow-500/15 via-amber-500/15 to-sky-500/15 border-2 border-yellow-400/60 shadow-lg shadow-yellow-500/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-yellow-400/25 border border-yellow-300 flex items-center justify-center text-yellow-300 font-bold text-base shadow-sm animate-pulse">
+                    🕊️
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-black text-yellow-300 block">Modo Vuelo & Noclip</span>
+                      <span className="text-[9px] font-black px-1.5 py-0.5 bg-yellow-400 text-slate-950 rounded">SUPER VIP [G]</span>
+                    </div>
+                    <span className="text-[10px] text-slate-300">Vuela en 3D, super velocidad y atraviesa estructuras sólidas</span>
+                  </div>
+                </div>
+                <button
+                  id="vip-modal-toggle-fly"
+                  onClick={() => togglePower('flyMode')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer ${
+                    user.flyMode
+                      ? 'bg-gradient-to-r from-yellow-400 to-amber-400 text-slate-950 font-black shadow-md shadow-yellow-400/40 ring-2 ring-yellow-300 animate-pulse'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  {user.flyMode ? 'VOLANDO' : 'ACTIVAR'}
+                </button>
+              </div>
+
               {/* God Mode */}
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60">
                 <div className="flex items-center gap-2.5">
@@ -251,6 +286,79 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
             </div>
           </div>
 
+          {/* Weather Controller Section for VIP Santiago */}
+          <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                <CloudRain className="w-4 h-4" />
+                Control de Clima del Mundo (VIP)
+              </h3>
+              {currentWeather && (
+                <span className="text-[10px] uppercase font-bold text-sky-300 px-2 py-0.5 rounded-full bg-sky-950/80 border border-sky-500/40">
+                  Activo: {currentWeather}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button
+                type="button"
+                onClick={() => onSetWeather?.('clear')}
+                className={`p-2.5 rounded-xl border text-center transition active:scale-95 cursor-pointer ${
+                  currentWeather === 'clear'
+                    ? 'bg-amber-950/90 border-amber-400 text-amber-200 ring-2 ring-amber-400/50'
+                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                }`}
+              >
+                <Sun className="w-5 h-5 mx-auto mb-1 text-amber-400" />
+                <span className="text-xs font-bold block">Despejado</span>
+                <span className="text-[9px] text-slate-400">Soleado</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSetWeather?.('rain')}
+                className={`p-2.5 rounded-xl border text-center transition active:scale-95 cursor-pointer ${
+                  currentWeather === 'rain'
+                    ? 'bg-sky-950/90 border-sky-400 text-sky-200 ring-2 ring-sky-400/50'
+                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                }`}
+              >
+                <CloudRain className="w-5 h-5 mx-auto mb-1 text-sky-400 animate-bounce" />
+                <span className="text-xs font-bold block">Lluvia</span>
+                <span className="text-[9px] text-slate-400">Piso resbaladizo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSetWeather?.('fog')}
+                className={`p-2.5 rounded-xl border text-center transition active:scale-95 cursor-pointer ${
+                  currentWeather === 'fog'
+                    ? 'bg-slate-800 border-slate-300 text-slate-100 ring-2 ring-slate-400/50'
+                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                }`}
+              >
+                <CloudFog className="w-5 h-5 mx-auto mb-1 text-slate-300 animate-pulse" />
+                <span className="text-xs font-bold block">Neblina</span>
+                <span className="text-[9px] text-slate-400">Niebla densa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSetWeather?.('wind')}
+                className={`p-2.5 rounded-xl border text-center transition active:scale-95 cursor-pointer ${
+                  currentWeather === 'wind'
+                    ? 'bg-teal-950/90 border-teal-400 text-teal-200 ring-2 ring-teal-400/50'
+                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                }`}
+              >
+                <Wind className="w-5 h-5 mx-auto mb-1 text-teal-400 animate-pulse" />
+                <span className="text-xs font-bold block">Viento</span>
+                <span className="text-[9px] text-slate-400">Ráfagas fuertes</span>
+              </button>
+            </div>
+          </div>
+
           {/* Instant Teleporter Section */}
           <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
@@ -268,6 +376,17 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
               </button>
 
               <button
+                onClick={() => onTeleportTo('mayan_temple')}
+                className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/80 to-amber-950/80 hover:from-emerald-900/90 hover:to-amber-900/90 border-2 border-emerald-400 text-left transition active:scale-95 cursor-pointer col-span-2 shadow-lg ring-2 ring-emerald-500/30"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-black text-emerald-300 block">🏛️ Templo Maya (Interior & Rey Zombi)</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-400/50">DESTINO PRINCIPAL</span>
+                </div>
+                <span className="text-xs text-amber-200/80">Teletransportación directa a la Gran Sala Ceremonial y Altar</span>
+              </button>
+
+              <button
                 onClick={() => onTeleportTo('shop')}
                 className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left transition active:scale-95 cursor-pointer"
               >
@@ -281,22 +400,6 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
               >
                 <span className="text-xs font-bold text-white block">⚡ Tienda de Multiplicadores</span>
                 <span className="text-[10px] text-slate-400">Poder de monedas</span>
-              </button>
-
-              <button
-                onClick={() => onTeleportTo('candy_portal')}
-                className="p-2.5 rounded-xl bg-pink-950/40 hover:bg-pink-900/40 border border-pink-500/40 text-left transition active:scale-95 cursor-pointer"
-              >
-                <span className="text-xs font-bold text-pink-300 block">🍬 Mundo Caramelo</span>
-                <span className="text-[10px] text-pink-400/70">Dimensión dulce</span>
-              </button>
-
-              <button
-                onClick={() => onTeleportTo('mayan_temple')}
-                className="p-2.5 rounded-xl bg-amber-950/40 hover:bg-amber-900/40 border border-amber-500/40 text-left transition active:scale-95 cursor-pointer col-span-2 sm:col-span-2"
-              >
-                <span className="text-xs font-bold text-amber-300 block">🏛️ Cripta Maya (Jefe Final)</span>
-                <span className="text-[10px] text-amber-400/70">Combate contra el Rey Zombi</span>
               </button>
             </div>
           </div>

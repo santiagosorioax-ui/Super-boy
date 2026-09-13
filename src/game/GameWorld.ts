@@ -1,14 +1,17 @@
 import * as THREE from 'three';
-import { CoinData, GameSettings, MayanBossState, TimeState, WorldDimension } from '../types';
+import { CoinData, GameSettings, MayanBossState, PlayerCustomization, TimeState, WeatherState, WeatherType, WorldDimension } from '../types';
 import { soundEngine } from '../audio/soundEngine';
 import { ZombieSystem } from './ZombieSystem';
 import { CandyWorldBuilder, CandyWorldElements } from './CandyWorldBuilder';
 import { MayanBossSystem } from './MayanBossSystem';
 import { MayanTempleBuilder, MayanTempleElements } from './MayanTempleBuilder';
+import { WeatherSystem } from './WeatherSystem';
+import { createCustomAvatar, AvatarInstance, AvatarLimbs } from './AvatarCustomizer';
 
 export interface WorldCallbacks {
   onCoinCollected: (coin: CoinData, remaining: number, total: number, combo: number) => void;
   onTimeUpdate: (timeState: TimeState) => void;
+  onWeatherUpdate?: (weather: WeatherState) => void;
   onJump: () => void;
   onSpring: () => void;
   onVictory: () => void;
@@ -28,6 +31,8 @@ export interface WorldCallbacks {
   onSpendCoins?: (amount: number) => boolean;
   onAddCoins?: (amount: number) => void;
   onToast?: (message: string) => void;
+  onFlightChange?: (isFlying: boolean) => void;
+  onWorldReady?: () => void;
 }
 
 export class GameWorld {
@@ -37,6 +42,9 @@ export class GameWorld {
   private renderer: THREE.WebGLRenderer;
   private clock: THREE.Clock;
   private callbacks: WorldCallbacks;
+
+  // Weather System
+  private weatherSystem: WeatherSystem;
 
   // Performance & Quality
   private graphicsQuality: 'low' | 'medium' | 'high' = 'medium';
@@ -74,15 +82,8 @@ export class GameWorld {
   private playerInvincibleTimer = 0;
   private currentPeriod: TimeState['period'] = 'day';
   private playerMesh: THREE.Group;
-  private limbs: {
-    leftLeg: THREE.Group;
-    rightLeg: THREE.Group;
-    leftArm: THREE.Group;
-    rightArm: THREE.Group;
-    head: THREE.Group;
-    torso: THREE.Group;
-    cape?: THREE.Mesh;
-  } | null = null;
+  private avatarInstance: AvatarInstance;
+  private limbs: AvatarLimbs | null = null;
   private walkCycle = 0;
   private footstepTimer = 0;
 
@@ -104,11 +105,16 @@ export class GameWorld {
   };
 
   // VIP / Admin Unlimited Privileges
+  private isVip = false;
   private isGodMode = false;
   private superSpeed = false;
   private superJump = false;
   private superMagnet = false;
   private freeTemplePass = false;
+  private isFlying = false;
+  private flyAscend = false;
+  private flyDescend = false;
+  private flightTrailTimer = 0;
 
   // Shop Buildings & Proximity (Main Valley & Candy World)
   private mainShopPos = new THREE.Vector3(6.5, 0.2, 2.0);
@@ -204,6 +210,7 @@ export class GameWorld {
   private portalCooldownTimer = 0;
 
   private isRunning = false;
+  private isWorldReadyFired = false;
   private animFrameId: number | null = null;
   private mouseSensitivity = 1.5;
   private baseFov = 100;
@@ -299,7 +306,9 @@ export class GameWorld {
     this.scene.add(this.camera);
 
     // Player Mesh (Avatar for 3rd person)
-    this.playerMesh = this.createPlayerAvatar();
+    this.avatarInstance = createCustomAvatar();
+    this.playerMesh = this.avatarInstance.group;
+    this.limbs = this.avatarInstance.limbs;
     this.scene.add(this.playerMesh);
 
     // Build World Elements
@@ -307,8 +316,21 @@ export class GameWorld {
     this.spawnFireflies();
     this.spawnCoins();
 
+    // 4. Random Weather System (Rain, Dense Fog, Strong Wind, Clear)
+    this.weatherSystem = new WeatherSystem(this.scene, {
+      onWeatherChange: (state) => {
+        this.callbacks.onWeatherUpdate?.(state);
+      },
+      onToast: (msg) => {
+        this.callbacks.onToast?.(msg);
+      },
+    });
+
     // Initial Day-Night sync
     this.updateTimeOfDay(0);
+
+    // Initial weather notification to HUD
+    this.callbacks.onWeatherUpdate?.(this.weatherSystem.getWeatherState());
 
     // Listeners
     this.setupEventListeners();
@@ -433,452 +455,26 @@ export class GameWorld {
     this.scene.add(this.firefliesParticles);
   }
 
-  // --- PLAYER AVATAR (HUMAN ADVENTURER: SUPER BOY) ---
+  // --- PLAYER AVATAR & CUSTOMIZATION ---
+  public setCustomization(customization: PlayerCustomization): void {
+    if (this.avatarInstance) {
+      this.avatarInstance.updateCustomization(customization);
+      this.limbs = this.avatarInstance.limbs;
+    }
+  }
+
   private createPlayerAvatar(): THREE.Group {
-    const group = new THREE.Group();
-
-    // 1. Stylized Materials
-    const skinMat = new THREE.MeshStandardMaterial({
-      color: 0xffd5b8, // Warm natural peach skin tone
-      roughness: 0.65,
-      metalness: 0.02,
-    });
-    const hairMat = new THREE.MeshStandardMaterial({
-      color: 0x4a2a16, // Rich chestnut brown hair
-      roughness: 0.75,
-      flatShading: true,
-    });
-    const jacketMat = new THREE.MeshStandardMaterial({
-      color: 0xd93829, // Energetic adventurer red jacket
-      roughness: 0.5,
-    });
-    const jacketTrimMat = new THREE.MeshStandardMaterial({
-      color: 0x1e3a8a, // Deep navy trim & collar
-      roughness: 0.5,
-    });
-    const shirtMat = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc, // White graphic shirt
-      roughness: 0.6,
-    });
-    const goldMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b, // Golden star emblem & belt buckle
-      roughness: 0.25,
-      metalness: 0.8,
-    });
-    const beltMat = new THREE.MeshStandardMaterial({
-      color: 0x3d2010, // Dark leather belt
-      roughness: 0.7,
-    });
-    const pantsMat = new THREE.MeshStandardMaterial({
-      color: 0x1e2e4a, // Slate denim jeans
-      roughness: 0.7,
-    });
-    const kneePatchMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a, // Reinforced knee patches
-      roughness: 0.8,
-    });
-    const shoeBodyMat = new THREE.MeshStandardMaterial({
-      color: 0xd93829, // Red athletic sneaker upper
-      roughness: 0.5,
-    });
-    const shoeSoleMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff, // White rubber sole & toe cap
-      roughness: 0.35,
-    });
-    const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const irisMat = new THREE.MeshBasicMaterial({ color: 0x2563eb }); // Vibrant sapphire blue iris
-    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x090d16 }); // Dark pupil
-    const eyebrowMat = new THREE.MeshBasicMaterial({ color: 0x381e0f });
-    const mouthMat = new THREE.MeshBasicMaterial({ color: 0xa83244 });
-    const gloveMat = new THREE.MeshStandardMaterial({
-      color: 0x292524, // Fingerless adventurer wrist cuffs & gloves
-      roughness: 0.6,
-    });
-    const packMat = new THREE.MeshStandardMaterial({
-      color: 0x065f46, // Forest green adventurer backpack
-      roughness: 0.65,
-    });
-    const strapMat = new THREE.MeshStandardMaterial({
-      color: 0xb45309, // Leather backpack straps
-      roughness: 0.7,
-    });
-    const capeMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444, // Ruby hero scarf / mini-cape
-      roughness: 0.5,
-      side: THREE.DoubleSide,
-    });
-
-    // 2. Head Group
-    const headGroup = new THREE.Group();
-    headGroup.position.set(0, 1.38, 0);
-
-    // Head base (curved proportions)
-    const headGeom = new THREE.BoxGeometry(0.38, 0.40, 0.38);
-    const headMesh = new THREE.Mesh(headGeom, skinMat);
-    headMesh.position.set(0, 0.20, 0);
-    headMesh.castShadow = true;
-    headGroup.add(headMesh);
-
-    // Nose
-    const noseGeom = new THREE.BoxGeometry(0.05, 0.06, 0.07);
-    const nose = new THREE.Mesh(noseGeom, skinMat);
-    nose.position.set(0, 0.19, 0.21);
-    headGroup.add(nose);
-
-    // Smiling Mouth
-    const mouthGeom = new THREE.BoxGeometry(0.12, 0.025, 0.02);
-    const mouth = new THREE.Mesh(mouthGeom, mouthMat);
-    mouth.position.set(0, 0.11, 0.195);
-    headGroup.add(mouth);
-
-    // Left Eye
-    const eyeGeom = new THREE.BoxGeometry(0.08, 0.08, 0.02);
-    const leftEyeWhite = new THREE.Mesh(eyeGeom, eyeWhiteMat);
-    leftEyeWhite.position.set(-0.095, 0.23, 0.192);
-    headGroup.add(leftEyeWhite);
-
-    const irisGeom = new THREE.BoxGeometry(0.05, 0.06, 0.02);
-    const leftIris = new THREE.Mesh(irisGeom, irisMat);
-    leftIris.position.set(-0.095, 0.23, 0.198);
-    headGroup.add(leftIris);
-
-    const pupilGeom = new THREE.BoxGeometry(0.025, 0.035, 0.02);
-    const leftPupil = new THREE.Mesh(pupilGeom, pupilMat);
-    leftPupil.position.set(-0.095, 0.23, 0.202);
-    headGroup.add(leftPupil);
-
-    const glintGeom = new THREE.BoxGeometry(0.012, 0.012, 0.02);
-    const leftGlint = new THREE.Mesh(glintGeom, eyeWhiteMat);
-    leftGlint.position.set(-0.085, 0.245, 0.205);
-    headGroup.add(leftGlint);
-
-    // Right Eye
-    const rightEyeWhite = new THREE.Mesh(eyeGeom, eyeWhiteMat);
-    rightEyeWhite.position.set(0.095, 0.23, 0.192);
-    headGroup.add(rightEyeWhite);
-
-    const rightIris = new THREE.Mesh(irisGeom, irisMat);
-    rightIris.position.set(0.095, 0.23, 0.198);
-    headGroup.add(rightIris);
-
-    const rightPupil = new THREE.Mesh(pupilGeom, pupilMat);
-    rightPupil.position.set(0.095, 0.23, 0.202);
-    headGroup.add(rightPupil);
-
-    const rightGlint = new THREE.Mesh(glintGeom, eyeWhiteMat);
-    rightGlint.position.set(0.105, 0.245, 0.205);
-    headGroup.add(rightGlint);
-
-    // Eyebrows
-    const browGeom = new THREE.BoxGeometry(0.09, 0.025, 0.02);
-    const leftBrow = new THREE.Mesh(browGeom, eyebrowMat);
-    leftBrow.position.set(-0.095, 0.29, 0.195);
-    leftBrow.rotation.z = 0.08;
-    headGroup.add(leftBrow);
-
-    const rightBrow = new THREE.Mesh(browGeom, eyebrowMat);
-    rightBrow.position.set(0.095, 0.29, 0.195);
-    rightBrow.rotation.z = -0.08;
-    headGroup.add(rightBrow);
-
-    // Left & Right Human Ears
-    const earGeom = new THREE.BoxGeometry(0.05, 0.09, 0.07);
-    const leftEar = new THREE.Mesh(earGeom, skinMat);
-    leftEar.position.set(-0.21, 0.20, 0);
-    headGroup.add(leftEar);
-
-    const rightEar = new THREE.Mesh(earGeom, skinMat);
-    rightEar.position.set(0.21, 0.20, 0);
-    headGroup.add(rightEar);
-
-    // 3D Layered Hair
-    const hairTopGeom = new THREE.BoxGeometry(0.42, 0.18, 0.42);
-    const hairTop = new THREE.Mesh(hairTopGeom, hairMat);
-    hairTop.position.set(0, 0.35, -0.01);
-    headGroup.add(hairTop);
-
-    const hairBackGeom = new THREE.BoxGeometry(0.42, 0.26, 0.14);
-    const hairBack = new THREE.Mesh(hairBackGeom, hairMat);
-    hairBack.position.set(0, 0.20, -0.15);
-    headGroup.add(hairBack);
-
-    // Sideburns
-    const sideburnGeom = new THREE.BoxGeometry(0.06, 0.18, 0.14);
-    const leftSideburn = new THREE.Mesh(sideburnGeom, hairMat);
-    leftSideburn.position.set(-0.205, 0.24, 0.04);
-    headGroup.add(leftSideburn);
-
-    const rightSideburn = new THREE.Mesh(sideburnGeom, hairMat);
-    rightSideburn.position.set(0.205, 0.24, 0.04);
-    headGroup.add(rightSideburn);
-
-    // Front Hair Bangs (Fringe locks)
-    const bang1Geom = new THREE.ConeGeometry(0.05, 0.12, 4);
-    const bang1 = new THREE.Mesh(bang1Geom, hairMat);
-    bang1.position.set(-0.10, 0.32, 0.21);
-    bang1.rotation.set(-0.3, 0, 0.2);
-    headGroup.add(bang1);
-
-    const bang2 = new THREE.Mesh(bang1Geom, hairMat);
-    bang2.position.set(0.0, 0.33, 0.22);
-    bang2.rotation.set(-0.35, 0, -0.1);
-    headGroup.add(bang2);
-
-    const bang3 = new THREE.Mesh(bang1Geom, hairMat);
-    bang3.position.set(0.10, 0.32, 0.21);
-    bang3.rotation.set(-0.3, 0, -0.2);
-    headGroup.add(bang3);
-
-    // Super Boy Cap (Sporty Backwards Cap with Star Badge)
-    const capCrownGeom = new THREE.CylinderGeometry(0.22, 0.24, 0.14, 12);
-    const capCrown = new THREE.Mesh(capCrownGeom, jacketMat);
-    capCrown.position.set(0, 0.38, -0.02);
-    headGroup.add(capCrown);
-
-    const capBrimGeom = new THREE.BoxGeometry(0.22, 0.025, 0.16);
-    const capBrim = new THREE.Mesh(capBrimGeom, jacketMat);
-    capBrim.position.set(0, 0.33, -0.20);
-    capBrim.rotation.x = -0.15;
-    headGroup.add(capBrim);
-
-    // Star Emblem on Cap
-    const starGeom = new THREE.DodecahedronGeometry(0.04, 0);
-    const capStar = new THREE.Mesh(starGeom, goldMat);
-    capStar.position.set(0, 0.38, 0.19);
-    capStar.rotation.y = 0.4;
-    headGroup.add(capStar);
-
-    group.add(headGroup);
-
-    // 3. Torso Group (Layered Clothing & Accessories)
-    const torsoGroup = new THREE.Group();
-    torsoGroup.position.set(0, 0.82, 0);
-
-    // Human Neck
-    const neckGeom = new THREE.CylinderGeometry(0.09, 0.10, 0.18, 8);
-    const neck = new THREE.Mesh(neckGeom, skinMat);
-    neck.position.set(0, 0.45, 0);
-    torsoGroup.add(neck);
-
-    // Main Red Jacket
-    const jacketGeom = new THREE.BoxGeometry(0.50, 0.46, 0.32);
-    const jacket = new THREE.Mesh(jacketGeom, jacketMat);
-    jacket.position.set(0, 0.23, 0);
-    jacket.castShadow = true;
-    torsoGroup.add(jacket);
-
-    // Inner White Shirt Panel
-    const shirtGeom = new THREE.BoxGeometry(0.24, 0.40, 0.02);
-    const shirt = new THREE.Mesh(shirtGeom, shirtMat);
-    shirt.position.set(0, 0.23, 0.162);
-    torsoGroup.add(shirt);
-
-    // Chest Emblem (Golden Adventure Star)
-    const chestEmblem = new THREE.Mesh(starGeom, goldMat);
-    chestEmblem.position.set(0, 0.27, 0.176);
-    torsoGroup.add(chestEmblem);
-
-    // Navy Lapels & Collar
-    const lapelGeom = new THREE.BoxGeometry(0.05, 0.44, 0.03);
-    const leftLapel = new THREE.Mesh(lapelGeom, jacketTrimMat);
-    leftLapel.position.set(-0.14, 0.23, 0.162);
-    torsoGroup.add(leftLapel);
-
-    const rightLapel = new THREE.Mesh(lapelGeom, jacketTrimMat);
-    rightLapel.position.set(0.14, 0.23, 0.162);
-    torsoGroup.add(rightLapel);
-
-    // Dark Leather Belt & Golden Buckle
-    const beltGeom = new THREE.BoxGeometry(0.52, 0.08, 0.34);
-    const belt = new THREE.Mesh(beltGeom, beltMat);
-    belt.position.set(0, 0.02, 0);
-    torsoGroup.add(belt);
-
-    const buckleGeom = new THREE.BoxGeometry(0.10, 0.09, 0.04);
-    const buckle = new THREE.Mesh(buckleGeom, goldMat);
-    buckle.position.set(0, 0.02, 0.175);
-    torsoGroup.add(buckle);
-
-    // Adventurer Backpack
-    const packGeom = new THREE.BoxGeometry(0.36, 0.42, 0.18);
-    const pack = new THREE.Mesh(packGeom, packMat);
-    pack.position.set(0, 0.24, -0.24);
-    pack.castShadow = true;
-    torsoGroup.add(pack);
-
-    const pocketGeom = new THREE.BoxGeometry(0.26, 0.18, 0.08);
-    const pocket = new THREE.Mesh(pocketGeom, packMat);
-    pocket.position.set(0, 0.16, -0.35);
-    torsoGroup.add(pocket);
-
-    // Straps over shoulders
-    const strapGeom = new THREE.BoxGeometry(0.06, 0.44, 0.34);
-    const leftStrap = new THREE.Mesh(strapGeom, strapMat);
-    leftStrap.position.set(-0.16, 0.24, -0.01);
-    torsoGroup.add(leftStrap);
-
-    const rightStrap = new THREE.Mesh(strapGeom, strapMat);
-    rightStrap.position.set(0.16, 0.24, -0.01);
-    torsoGroup.add(rightStrap);
-
-    // Hero Scarf / Neck Torus Ring
-    const scarfCollarGeom = new THREE.TorusGeometry(0.15, 0.045, 6, 12);
-    const scarfCollar = new THREE.Mesh(scarfCollarGeom, capeMat);
-    scarfCollar.position.set(0, 0.43, 0);
-    scarfCollar.rotation.x = Math.PI / 2;
-    torsoGroup.add(scarfCollar);
-
-    // Dynamic Trailing Scarf / Cape
-    const capeGeom = new THREE.PlaneGeometry(0.30, 0.52);
-    const cape = new THREE.Mesh(capeGeom, capeMat);
-    cape.position.set(0, 0.38, -0.18);
-    cape.rotation.x = 0.25;
-    torsoGroup.add(cape);
-
-    group.add(torsoGroup);
-
-    // 4. Arms (Articulated at shoulder joints)
-    const createArm = (isLeft: boolean): THREE.Group => {
-      const arm = new THREE.Group();
-      arm.position.set(isLeft ? -0.32 : 0.32, 1.20, 0);
-
-      // Shoulder round cap
-      const shoulderGeom = new THREE.SphereGeometry(0.09, 8, 8);
-      const shoulder = new THREE.Mesh(shoulderGeom, jacketMat);
-      shoulder.position.set(0, 0, 0);
-      shoulder.castShadow = true;
-      arm.add(shoulder);
-
-      // Upper sleeve
-      const sleeveGeom = new THREE.CylinderGeometry(0.08, 0.075, 0.20, 8);
-      const sleeve = new THREE.Mesh(sleeveGeom, jacketMat);
-      sleeve.position.set(0, -0.10, 0);
-      sleeve.castShadow = true;
-      arm.add(sleeve);
-
-      // Forearm (Human Skin)
-      const forearmGeom = new THREE.CylinderGeometry(0.068, 0.062, 0.18, 8);
-      const forearm = new THREE.Mesh(forearmGeom, skinMat);
-      forearm.position.set(0, -0.27, 0);
-      forearm.castShadow = true;
-      arm.add(forearm);
-
-      // Wristband / Glove Cuff
-      const wristGeom = new THREE.CylinderGeometry(0.072, 0.072, 0.07, 8);
-      const wrist = new THREE.Mesh(wristGeom, gloveMat);
-      wrist.position.set(0, -0.37, 0);
-      arm.add(wrist);
-
-      // Human Hand (Detailed Palm & Fingers)
-      const palmGeom = new THREE.BoxGeometry(0.09, 0.09, 0.09);
-      const palm = new THREE.Mesh(palmGeom, skinMat);
-      palm.position.set(0, -0.46, 0.01);
-      palm.castShadow = true;
-      arm.add(palm);
-
-      // Thumb
-      const thumbGeom = new THREE.BoxGeometry(0.035, 0.055, 0.045);
-      const thumb = new THREE.Mesh(thumbGeom, skinMat);
-      thumb.position.set(isLeft ? -0.05 : 0.05, -0.44, 0.04);
-      thumb.rotation.z = isLeft ? 0.3 : -0.3;
-      arm.add(thumb);
-
-      // Curled Fingers (Grip pose for holding swords/items)
-      const fingersGeom = new THREE.BoxGeometry(0.08, 0.045, 0.05);
-      const fingers = new THREE.Mesh(fingersGeom, skinMat);
-      fingers.position.set(0, -0.48, 0.05);
-      arm.add(fingers);
-
-      return arm;
-    };
-
-    const leftArm = createArm(true);
-    group.add(leftArm);
-
-    const rightArm = createArm(false);
-    group.add(rightArm);
-
-    // 5. Legs (Articulated at hip joints)
-    const createLeg = (isLeft: boolean): THREE.Group => {
-      const leg = new THREE.Group();
-      leg.position.set(isLeft ? -0.14 : 0.14, 0.74, 0);
-
-      // Thigh (Denim Pants)
-      const thighGeom = new THREE.CylinderGeometry(0.095, 0.088, 0.28, 8);
-      const thigh = new THREE.Mesh(thighGeom, pantsMat);
-      thigh.position.set(0, -0.14, 0);
-      thigh.castShadow = true;
-      leg.add(thigh);
-
-      // Knee Patch
-      const patchGeom = new THREE.BoxGeometry(0.11, 0.07, 0.025);
-      const patch = new THREE.Mesh(patchGeom, kneePatchMat);
-      patch.position.set(0, -0.27, 0.08);
-      leg.add(patch);
-
-      // Shin / Lower Leg
-      const shinGeom = new THREE.CylinderGeometry(0.085, 0.08, 0.24, 8);
-      const shin = new THREE.Mesh(shinGeom, pantsMat);
-      shin.position.set(0, -0.38, 0);
-      shin.castShadow = true;
-      leg.add(shin);
-
-      // High-Top Sneaker
-      const sneakerCuffGeom = new THREE.CylinderGeometry(0.088, 0.088, 0.08, 8);
-      const sneakerCuff = new THREE.Mesh(sneakerCuffGeom, shoeBodyMat);
-      sneakerCuff.position.set(0, -0.52, 0);
-      leg.add(sneakerCuff);
-
-      const shoeBodyGeom = new THREE.BoxGeometry(0.13, 0.11, 0.22);
-      const shoeBody = new THREE.Mesh(shoeBodyGeom, shoeBodyMat);
-      shoeBody.position.set(0, -0.59, 0.03);
-      shoeBody.castShadow = true;
-      leg.add(shoeBody);
-
-      // White Thick Rubber Sole
-      const soleGeom = new THREE.BoxGeometry(0.14, 0.04, 0.24);
-      const sole = new THREE.Mesh(soleGeom, shoeSoleMat);
-      sole.position.set(0, -0.66, 0.03);
-      sole.receiveShadow = true;
-      leg.add(sole);
-
-      // White Rubber Toe Cap
-      const toeCapGeom = new THREE.BoxGeometry(0.13, 0.065, 0.07);
-      const toeCap = new THREE.Mesh(toeCapGeom, shoeSoleMat);
-      toeCap.position.set(0, -0.61, 0.12);
-      leg.add(toeCap);
-
-      // White Sneaker Laces
-      const lacesGeom = new THREE.BoxGeometry(0.07, 0.03, 0.10);
-      const laces = new THREE.Mesh(lacesGeom, shoeSoleMat);
-      laces.position.set(0, -0.56, 0.05);
-      leg.add(laces);
-
-      return leg;
-    };
-
-    const leftLeg = createLeg(true);
-    group.add(leftLeg);
-
-    const rightLeg = createLeg(false);
-    group.add(rightLeg);
-
-    this.limbs = {
-      leftLeg,
-      rightLeg,
-      leftArm,
-      rightArm,
-      head: headGroup,
-      torso: torsoGroup,
-      cape,
-    };
-
-    return group;
+    this.avatarInstance = createCustomAvatar();
+    this.limbs = this.avatarInstance.limbs;
+    return this.avatarInstance.group;
   }
 
   public getTerrainHeight(x: number, z: number): number {
     if (this.currentWorld === 'candy' || Math.hypot(x - 600, z - 600) < 140) {
       return 0.4;
+    }
+    if (this.currentWorld === 'mayan_boss' || Math.hypot(x - (-700), z - (-700)) < 90) {
+      return 0.0;
     }
     const distFromCenter = Math.hypot(x, z);
     // Plaza courtyard check
@@ -964,7 +560,7 @@ export class GameWorld {
       onBossStateUpdate: (state) => this.callbacks.onBossStateUpdate?.(state),
       onAddCoins: (amount) => this.callbacks.onAddCoins?.(amount),
       onPlayerHurt: (msg) => {
-        if (this.isPlayerDead || this.playerInvincibleTimer > 0) return;
+        if (this.isPlayerDead || this.playerInvincibleTimer > 0 || this.isGodMode) return;
         this.playerInvincibleTimer = 0.9;
         this.playerHealth = Math.max(0, this.playerHealth - 1);
         this.callbacks.onPlayerHealthUpdate?.(this.playerHealth, this.maxPlayerHealth);
@@ -2101,15 +1697,14 @@ export class GameWorld {
       { x: 68, y: 10.5, z: -18, type: 'gem', value: 40 },
       { x: 82, y: 14.0, z: -25, type: 'star', value: 100 }, // East Dunes Peak Star!
 
-      // 5. Ancient Temple of the Sun (Mundo 1)
-      { x: 0, y: 16.5, z: -68, type: 'star', value: 10 }, // Summit Solar Star!
-      { x: 0, y: 10.5, z: -68, type: 'gem', value: 5 }, // Sanctuary Holy Altar Relic!
-      { x: -3.5, y: 9.0, z: -68, type: 'gold', value: 1 },
-      { x: 3.5, y: 9.0, z: -68, type: 'gold', value: 1 },
-      { x: 0, y: 7.8, z: -59, type: 'gold', value: 1 }, // Temple Entrance Stair 1
-      { x: -2.5, y: 8.2, z: -62, type: 'gold', value: 1 }, // Temple Entrance Stair 2
-      { x: 2.5, y: 8.2, z: -62, type: 'gold', value: 1 }, // Temple Entrance Stair 3
-      { x: -7.6, y: 15.0, z: -68, type: 'gem', value: 5 }, // Roof Parkour Ledge Gem
+      // 5. Ancient Temple of the Sun (Mundo 1) - Colossal Enlarged Mayan Pyramid
+      { x: 0, y: 27.8, z: -68, type: 'star', value: 10 }, // Summit Solar Star atop Crestería!
+      { x: 0, y: 20.2, z: -62, type: 'gem', value: 5 }, // Sanctuary Entrance Portal Relic!
+      { x: -4.5, y: 25.5, z: -68, type: 'gem', value: 5 }, // Roof Parkour Ledge Gem Left
+      { x: 4.5, y: 25.5, z: -68, type: 'gem', value: 5 }, // Roof Parkour Ledge Gem Right
+      { x: 0, y: 5.5, z: -48, type: 'gold', value: 1 }, // Grand Staircase Lower Tier
+      { x: -2.5, y: 10.0, z: -54, type: 'gold', value: 1 }, // Grand Staircase Middle Tier Left
+      { x: 2.5, y: 14.5, z: -59, type: 'gold', value: 1 }, // Grand Staircase Upper Tier Right
 
       // 6. North Highlands Sky Citadel
       { x: 0, y: 9.5, z: -65, type: 'gem', value: 35 },
@@ -2316,6 +1911,28 @@ export class GameWorld {
     }
 
     // Apply colors to scene & lights
+    // Atmospheric influence of weather (Rain overcast, Dense Fog mist, etc.)
+    if (this.weatherSystem) {
+      const weatherFogDensity = this.weatherSystem.getFogDensity();
+      const rainIntensity = this.weatherSystem.getRainIntensity();
+      const weatherType = this.weatherSystem.getWeatherType();
+
+      if (weatherType === 'fog') {
+        const fogTint = period === 'night' ? new THREE.Color(0x1e293b) : new THREE.Color(0xdce5ed);
+        skyColor.lerp(fogTint, 0.72);
+        fogColor.lerp(fogTint, 0.85);
+      } else if (weatherType === 'rain') {
+        const stormTint = period === 'night' ? new THREE.Color(0x0f172a) : new THREE.Color(0x475569);
+        skyColor.lerp(stormTint, Math.min(0.68, rainIntensity * 0.68));
+        fogColor.lerp(stormTint, Math.min(0.65, rainIntensity * 0.65));
+        sunIntensity *= Math.max(0.35, 1 - rainIntensity * 0.55);
+      }
+
+      if (this.scene.fog && this.scene.fog instanceof THREE.FogExp2) {
+        this.scene.fog.density = weatherFogDensity;
+      }
+    }
+
     this.scene.background = skyColor;
     if (this.scene.fog) {
       this.scene.fog.color = fogColor;
@@ -2443,7 +2060,10 @@ export class GameWorld {
     if (e.code === 'KeyF') {
       this.toggleFlashlight();
     }
-    if (e.code === 'KeyV' || e.code === 'KeyC') {
+    if (e.code === 'KeyG') {
+      this.toggleFlight();
+    }
+    if (e.code === 'KeyV') {
       this.toggleViewMode();
     }
     if (e.code === 'KeyM') {
@@ -2522,15 +2142,78 @@ export class GameWorld {
     superJump?: boolean;
     superMagnet?: boolean;
     freeTemplePass?: boolean;
+    flyMode?: boolean;
   }) {
     if (powers.isGodMode !== undefined) this.isGodMode = powers.isGodMode;
     if (powers.superSpeed !== undefined) this.superSpeed = powers.superSpeed;
     if (powers.superJump !== undefined) this.superJump = powers.superJump;
     if (powers.superMagnet !== undefined) this.superMagnet = powers.superMagnet;
     if (powers.freeTemplePass !== undefined) this.freeTemplePass = powers.freeTemplePass;
+    if (powers.flyMode !== undefined) this.setFlying(powers.flyMode);
+  }
+
+  public setVip(vip: boolean) {
+    this.isVip = vip;
+    if (!vip && this.isFlying) {
+      this.toggleFlight();
+    }
+  }
+
+  public toggleFlight(): boolean {
+    if (!this.isVip) {
+      this.callbacks.onToast?.('🔒 El Modo Vuelo & Noclip es exclusivo para Santiago VIP (santiagosorioax@gmail.com)');
+      return false;
+    }
+    this.isFlying = !this.isFlying;
+    if (this.isFlying) {
+      this.isOnGround = false;
+      const terrainGroundY = this.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      // Lift character smoothly into the air on take-off so they don't drag on the ground
+      if (this.playerPos.y <= terrainGroundY + 1.8) {
+        this.playerPos.y = terrainGroundY + 3.2;
+      }
+      this.playerVel.set(0, 6.0, 0);
+      soundEngine.playFlightToggleSound(true);
+      this.triggerHaptic([30, 40, 60]);
+      this.callbacks.onToast?.('🕊️ ¡Modo Vuelo & Noclip Activado! Atraviesas estructuras y vuelas en 3D');
+    } else {
+      soundEngine.playFlightToggleSound(false);
+      this.triggerHaptic(20);
+      // Softly prevent falling under terrain when disabling fly
+      const terrainGroundY = this.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      if (this.playerPos.y < terrainGroundY) {
+        this.playerPos.y = terrainGroundY + 1.0;
+      }
+      this.playerVel.set(0, 0, 0);
+      this.callbacks.onToast?.('🕊️ Modo Vuelo Desactivado: Físicas y colisiones normales restauradas');
+    }
+    this.callbacks.onFlightChange?.(this.isFlying);
+    return this.isFlying;
+  }
+
+  public setFlying(flying: boolean) {
+    if (flying && !this.isVip) return;
+    if (this.isFlying !== flying) {
+      this.toggleFlight();
+    }
+  }
+
+  public isPlayerFlying(): boolean {
+    return this.isFlying;
+  }
+
+  public setFlyVertical(dir: -1 | 0 | 1) {
+    this.flyAscend = dir === 1;
+    this.flyDescend = dir === -1;
   }
 
   public jump() {
+    if (this.isFlying) {
+      // While flying, jump triggers an upward vertical boost
+      this.playerVel.y = 22.0;
+      return;
+    }
+
     if (this.isOnGround) {
       let jumpMult = 1.0;
       if (this.equippedSwordId === 'fire_greatsword') jumpMult *= 1.3;
@@ -2568,6 +2251,14 @@ export class GameWorld {
 
   public setCycleSpeed(mode: GameSettings['cycleSpeed']) {
     this.cycleSpeedMode = mode;
+  }
+
+  public setWeather(type: WeatherType) {
+    this.weatherSystem?.setWeather(type, true);
+  }
+
+  public getWeatherState(): WeatherState | null {
+    return this.weatherSystem ? this.weatherSystem.getWeatherState() : null;
   }
 
   public setMouseSensitivity(val: number) {
@@ -2671,23 +2362,9 @@ export class GameWorld {
   public tryEnterMayanTemple(): boolean {
     if (this.currentWorld === 'mayan_boss') return false;
 
-    if (this.freeTemplePass) {
-      soundEngine.playTempleGateOpenSound();
-      this.teleportToWorld('mayan_boss');
-      this.callbacks.onToast?.('👑 ¡Pase VIP Maya! Acceso gratuito a la Cripta Maya');
-      return true;
-    }
-
-    const hasPaid = this.callbacks.onSpendCoins ? this.callbacks.onSpendCoins(500) : false;
-    if (!hasPaid) {
-      soundEngine.playBossShieldDeflectSound();
-      this.callbacks.onToast?.('🪙 ¡Necesitas 500 monedas para abrir el Templo Maya!');
-      return false;
-    }
-
     soundEngine.playTempleGateOpenSound();
     this.teleportToWorld('mayan_boss');
-    this.callbacks.onToast?.('🏛️ ¡Entraste a la Cripta Maya! ¡Derrota al Rey Zombi!');
+    this.callbacks.onToast?.('🏛️ ¡Entraste al Interior del Templo Maya! ¡Derrota al Rey Zombi!');
     return true;
   }
 
@@ -2758,6 +2435,9 @@ export class GameWorld {
     } else if (dest === 'boss_arena' || dest === 'mayan_boss' || dest === 'mayan_temple') {
       this.teleportToWorld('mayan_boss');
     } else if (dest === 'shop') {
+      if (this.currentWorld !== 'main') {
+        this.teleportToWorld('main');
+      }
       this.playerPos.set(16, 1.2, 0);
       this.playerVel.set(0, 0, 0);
       this.yaw = -Math.PI / 2;
@@ -2765,6 +2445,9 @@ export class GameWorld {
       this.spawnTeleportParticles(this.playerPos.clone());
       soundEngine.playTeleportSound();
     } else if (dest === 'multiplier_shop') {
+      if (this.currentWorld !== 'main') {
+        this.teleportToWorld('main');
+      }
       this.playerPos.set(-16, 1.2, 0);
       this.playerVel.set(0, 0, 0);
       this.yaw = Math.PI / 2;
@@ -2777,6 +2460,10 @@ export class GameWorld {
   }
 
   public teleportToSpawn() {
+    if (this.currentWorld !== 'main') {
+      this.teleportToWorld('main');
+      return;
+    }
     // Spawn effect at departing position
     this.spawnTeleportParticles(this.playerPos.clone().add(new THREE.Vector3(0, 0.5, 0)));
 
@@ -2831,6 +2518,46 @@ export class GameWorld {
       velocities,
       age: 0,
       maxAge: 0.85,
+    });
+  }
+
+  private spawnFlightParticles(pos: THREE.Vector3) {
+    const count = 5;
+    const geom = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const velocities: THREE.Vector3[] = [];
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = pos.x + (Math.random() - 0.5) * 0.7;
+      positions[i * 3 + 1] = pos.y + (Math.random() - 0.5) * 0.3;
+      positions[i * 3 + 2] = pos.z + (Math.random() - 0.5) * 0.7;
+
+      velocities.push(
+        new THREE.Vector3(
+          (Math.random() - 0.5) * 0.8,
+          Math.random() * 0.5 - 0.2,
+          (Math.random() - 0.5) * 0.8
+        )
+      );
+    }
+
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xfde047,
+      size: 0.75,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const points = new THREE.Points(geom, mat);
+    this.scene.add(points);
+
+    this.particleSystems.push({
+      points,
+      velocities,
+      age: 0,
+      maxAge: 0.45,
     });
   }
 
@@ -2914,6 +2641,10 @@ export class GameWorld {
     // 1. Update Day / Night progression
     this.updateTimeOfDay(dt);
 
+    // 1b. Update Dynamic Weather System (Rain, Fog, Wind Particles & Ambience)
+    this.weatherSystem.update(dt, this.playerPos, this.isOnGround);
+    const weatherPhysics = this.weatherSystem.getPhysics(this.playerPos, this.isOnGround);
+
     // 2. Buff Timers
     if (this.buffs.speedTimeRemaining > 0) {
       this.buffs.speedTimeRemaining = Math.max(0, this.buffs.speedTimeRemaining - dt);
@@ -2950,7 +2681,7 @@ export class GameWorld {
       moveY /= inputLen;
     }
 
-    // 4. Compute Speed with Sword & Buff Bonuses
+    // 4. Compute Speed with Sword & Buff Bonuses & Weather
     let speedBonus = 1.0;
     if (this.equippedSwordId === 'wood_sword') speedBonus *= 1.15;
     if (this.equippedSwordId === 'neon_katana') speedBonus *= 1.35;
@@ -2959,114 +2690,181 @@ export class GameWorld {
     if (this.superSpeed) speedBonus *= 1.9;
     if (this.buffs.speedTimeRemaining > 0) speedBonus *= this.buffs.speedMultiplier;
 
+    // Weather impact on player movement speed (e.g. dense fog thick air)
+    speedBonus *= weatherPhysics.speedFactor;
+
     const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    const speed = (this.isSprinting ? 12.5 : 7.8) * speedBonus;
 
-    const targetVelX = (forward.x * -moveY + right.x * moveX) * speed;
-    const targetVelZ = (forward.z * -moveY + right.z * moveX) * speed;
+    if (this.isFlying) {
+      // 🕊️ VIP FLIGHT & NOCLIP MODE (Super Speed & Passing Through Structures)
+      const flySpeed = (this.isSprinting ? 52.0 : 32.0) * (this.superSpeed ? 1.5 : 1.0);
 
-    this.playerVel.x = THREE.MathUtils.lerp(this.playerVel.x, targetVelX, 15 * dt);
-    this.playerVel.z = THREE.MathUtils.lerp(this.playerVel.z, targetVelZ, 15 * dt);
+      const targetVelX = (forward.x * -moveY + right.x * moveX) * flySpeed;
+      const targetVelZ = (forward.z * -moveY + right.z * moveX) * flySpeed;
 
-    // Gravity
-    this.playerVel.y -= 24 * dt;
+      let targetVelY = 0;
+      const isAscendPressed = this.keyState['Space'] || this.keyState['KeyE'] || this.flyAscend;
+      const isDescendPressed = this.keyState['ShiftLeft'] || this.keyState['ShiftRight'] || this.keyState['ControlLeft'] || this.keyState['ControlRight'] || this.keyState['KeyC'] || this.keyState['KeyQ'] || this.keyState['KeyZ'] || this.flyDescend;
 
-    // Apply movement with axis separation for smooth wall sliding and solid hitbox collision
-    const prevPos = this.playerPos.clone();
-    const playerRadius = 0.55;
-    const playerHeight = 1.8;
-
-    // 1. Move X & Resolve Obstacle Hitboxes
-    this.playerPos.x += this.playerVel.x * dt;
-    const boxX = new THREE.Box3(
-      new THREE.Vector3(this.playerPos.x - playerRadius, this.playerPos.y, prevPos.z - playerRadius),
-      new THREE.Vector3(this.playerPos.x + playerRadius, this.playerPos.y + playerHeight, prevPos.z + playerRadius)
-    );
-    for (const col of this.colliders) {
-      if (boxX.intersectsBox(col)) {
-        if (this.playerPos.y + 0.35 < col.max.y) {
-          this.playerPos.x = prevPos.x;
-          this.playerVel.x = 0;
-          break;
-        }
+      if (isAscendPressed) {
+        targetVelY = flySpeed * 0.9;
+      } else if (isDescendPressed) {
+        targetVelY = -flySpeed * 0.9;
+      } else if (Math.abs(moveY) > 0.05) {
+        // Vertical flight based on camera pitch orientation
+        targetVelY = Math.sin(this.pitch) * (-moveY) * (flySpeed * 0.75);
       }
-    }
 
-    // 2. Move Z & Resolve Obstacle Hitboxes
-    this.playerPos.z += this.playerVel.z * dt;
-    const boxZ = new THREE.Box3(
-      new THREE.Vector3(this.playerPos.x - playerRadius, this.playerPos.y, this.playerPos.z - playerRadius),
-      new THREE.Vector3(this.playerPos.x + playerRadius, this.playerPos.y + playerHeight, this.playerPos.z + playerRadius)
-    );
-    for (const col of this.colliders) {
-      if (boxZ.intersectsBox(col)) {
-        if (this.playerPos.y + 0.35 < col.max.y) {
-          this.playerPos.z = prevPos.z;
-          this.playerVel.z = 0;
-          break;
-        }
+      const flyLerp = Math.min(1, 18 * dt);
+      this.playerVel.x = THREE.MathUtils.lerp(this.playerVel.x, targetVelX, flyLerp);
+      this.playerVel.y = THREE.MathUtils.lerp(this.playerVel.y, targetVelY, flyLerp);
+      this.playerVel.z = THREE.MathUtils.lerp(this.playerVel.z, targetVelZ, flyLerp);
+
+      // Direct 3D position update bypassing colliders, platforms, and terrain obstacles (NOCLIP)
+      this.playerPos.x += this.playerVel.x * dt;
+      this.playerPos.y += this.playerVel.y * dt;
+      this.playerPos.z += this.playerVel.z * dt;
+      this.isOnGround = false;
+
+      // Soft terrain gliding: automatically follow ground elevation unless intentionally descending
+      const terrainGroundY = this.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+      if (!isDescendPressed && this.playerPos.y < terrainGroundY + 1.2) {
+        this.playerPos.y = THREE.MathUtils.lerp(this.playerPos.y, terrainGroundY + 1.6, 14 * dt);
+        if (this.playerVel.y < 0) this.playerVel.y = 0;
       }
-    }
 
-    // 3. Perimeter Mountain & Boundary Constraint for current dimension
-    if (this.currentWorld === 'main') {
-      const distFromOrigin = Math.hypot(this.playerPos.x, this.playerPos.z);
-      if (distFromOrigin > 144) {
-        const angle = Math.atan2(this.playerPos.z, this.playerPos.x);
-        this.playerPos.x = Math.cos(angle) * 144;
-        this.playerPos.z = Math.sin(angle) * 144;
+      // Soft lower threshold so player doesn't fall endlessly into void
+      if (this.playerPos.y < -15) {
+        this.playerPos.y = -15;
+        this.playerVel.y = Math.max(0, this.playerVel.y);
+      }
+
+      // Shimmer trail sparkles while flying
+      this.flightTrailTimer += dt;
+      if (this.flightTrailTimer > 0.06) {
+        this.flightTrailTimer = 0;
+        this.spawnFlightParticles(this.playerPos);
       }
     } else {
-      const distFromCandy = Math.hypot(this.playerPos.x - 600, this.playerPos.z - 600);
-      if (distFromCandy > 105) {
-        const angle = Math.atan2(this.playerPos.z - 600, this.playerPos.x - 600);
-        this.playerPos.x = 600 + Math.cos(angle) * 105;
-        this.playerPos.z = 600 + Math.sin(angle) * 105;
-      }
-    }
+      const speed = (this.isSprinting ? 12.5 : 7.8) * speedBonus;
 
-    // 4. Move Y (Vertical)
-    this.playerPos.y += this.playerVel.y * dt;
+      const targetVelX = (forward.x * -moveY + right.x * moveX) * speed;
+      const targetVelZ = (forward.z * -moveY + right.z * moveX) * speed;
 
-    // 5. Collision Detection with Platforms
-    let landedOnPlatform = false;
-    for (const plat of this.platforms) {
-      if (
-        this.playerPos.x >= plat.box.min.x - playerRadius &&
-        this.playerPos.x <= plat.box.max.x + playerRadius &&
-        this.playerPos.z >= plat.box.min.z - playerRadius &&
-        this.playerPos.z <= plat.box.max.z + playerRadius
-      ) {
-        if (prevPos.y >= plat.topY - 0.25 && this.playerPos.y <= plat.topY + 0.15 && this.playerVel.y <= 0) {
-          this.playerPos.y = plat.topY;
-          this.playerVel.y = 0;
-          this.isOnGround = true;
-          landedOnPlatform = true;
-          break;
+      // Apply slippery friction in rain vs standard traction
+      const lerpRate = Math.min(1, 15 * weatherPhysics.frictionFactor * dt);
+      this.playerVel.x = THREE.MathUtils.lerp(this.playerVel.x, targetVelX, lerpRate);
+      this.playerVel.z = THREE.MathUtils.lerp(this.playerVel.z, targetVelZ, lerpRate);
+
+      // Apply continuous wind force from WeatherSystem
+      this.playerVel.x += weatherPhysics.windForce.x * dt;
+      this.playerVel.z += weatherPhysics.windForce.z * dt;
+
+      // Gravity
+      this.playerVel.y -= 24 * dt;
+
+      // Apply movement with axis separation for smooth wall sliding and solid hitbox collision
+      const prevPos = this.playerPos.clone();
+      const playerRadius = 0.55;
+      const playerHeight = 1.8;
+
+      // 1. Move X & Resolve Obstacle Hitboxes
+      this.playerPos.x += this.playerVel.x * dt;
+      const boxX = new THREE.Box3(
+        new THREE.Vector3(this.playerPos.x - playerRadius, this.playerPos.y, prevPos.z - playerRadius),
+        new THREE.Vector3(this.playerPos.x + playerRadius, this.playerPos.y + playerHeight, prevPos.z + playerRadius)
+      );
+      for (const col of this.colliders) {
+        if (boxX.intersectsBox(col)) {
+          if (this.playerPos.y + 0.35 < col.max.y) {
+            this.playerPos.x = prevPos.x;
+            this.playerVel.x = 0;
+            break;
+          }
         }
       }
-    }
 
-    // 6. Terrain Ground & Hill Surface Hitbox Resolution
-    if (!landedOnPlatform) {
-      const terrainGroundY = this.getTerrainHeight(this.playerPos.x, this.playerPos.z);
-      if (this.playerPos.y <= terrainGroundY) {
-        // Prevent walking straight through vertical cliffs / walls
-        const stepDelta = terrainGroundY - prevPos.y;
-        if (stepDelta > 1.2 && this.isOnGround) {
-          this.playerPos.x = prevPos.x;
-          this.playerPos.z = prevPos.z;
-          this.playerPos.y = prevPos.y;
-          this.playerVel.x = 0;
-          this.playerVel.z = 0;
+      // 2. Move Z & Resolve Obstacle Hitboxes
+      this.playerPos.z += this.playerVel.z * dt;
+      const boxZ = new THREE.Box3(
+        new THREE.Vector3(this.playerPos.x - playerRadius, this.playerPos.y, this.playerPos.z - playerRadius),
+        new THREE.Vector3(this.playerPos.x + playerRadius, this.playerPos.y + playerHeight, this.playerPos.z + playerRadius)
+      );
+      for (const col of this.colliders) {
+        if (boxZ.intersectsBox(col)) {
+          if (this.playerPos.y + 0.35 < col.max.y) {
+            this.playerPos.z = prevPos.z;
+            this.playerVel.z = 0;
+            break;
+          }
+        }
+      }
+
+      // 3. Perimeter Mountain & Boundary Constraint for current dimension
+      if (this.currentWorld === 'main') {
+        const distFromOrigin = Math.hypot(this.playerPos.x, this.playerPos.z);
+        if (distFromOrigin > 144) {
+          const angle = Math.atan2(this.playerPos.z, this.playerPos.x);
+          this.playerPos.x = Math.cos(angle) * 144;
+          this.playerPos.z = Math.sin(angle) * 144;
+        }
+      } else if (this.currentWorld === 'candy') {
+        const distFromCandy = Math.hypot(this.playerPos.x - 600, this.playerPos.z - 600);
+        if (distFromCandy > 105) {
+          const angle = Math.atan2(this.playerPos.z - 600, this.playerPos.x - 600);
+          this.playerPos.x = 600 + Math.cos(angle) * 105;
+          this.playerPos.z = 600 + Math.sin(angle) * 105;
+        }
+      } else if (this.currentWorld === 'mayan_boss') {
+        // Enforce Mayan Temple Interior Hall boundaries (-700, -700)
+        // Hall is 58m wide (X: -729 to -671), 96m long (Z: -748 to -652)
+        this.playerPos.x = Math.max(-726, Math.min(-674, this.playerPos.x));
+        this.playerPos.z = Math.max(-745, Math.min(-655, this.playerPos.z));
+      }
+
+      // 4. Move Y (Vertical)
+      this.playerPos.y += this.playerVel.y * dt;
+
+      // 5. Collision Detection with Platforms
+      let landedOnPlatform = false;
+      for (const plat of this.platforms) {
+        if (
+          this.playerPos.x >= plat.box.min.x - playerRadius &&
+          this.playerPos.x <= plat.box.max.x + playerRadius &&
+          this.playerPos.z >= plat.box.min.z - playerRadius &&
+          this.playerPos.z <= plat.box.max.z + playerRadius
+        ) {
+          if (prevPos.y >= plat.topY - 0.25 && this.playerPos.y <= plat.topY + 0.15 && this.playerVel.y <= 0) {
+            this.playerPos.y = plat.topY;
+            this.playerVel.y = 0;
+            this.isOnGround = true;
+            landedOnPlatform = true;
+            break;
+          }
+        }
+      }
+
+      // 6. Terrain Ground & Hill Surface Hitbox Resolution
+      if (!landedOnPlatform) {
+        const terrainGroundY = this.getTerrainHeight(this.playerPos.x, this.playerPos.z);
+        if (this.playerPos.y <= terrainGroundY) {
+          // Prevent walking straight through vertical cliffs / walls
+          const stepDelta = terrainGroundY - prevPos.y;
+          if (stepDelta > 1.2 && this.isOnGround) {
+            this.playerPos.x = prevPos.x;
+            this.playerPos.z = prevPos.z;
+            this.playerPos.y = prevPos.y;
+            this.playerVel.x = 0;
+            this.playerVel.z = 0;
+          } else {
+            this.playerPos.y = terrainGroundY;
+            this.playerVel.y = 0;
+            this.isOnGround = true;
+          }
         } else {
-          this.playerPos.y = terrainGroundY;
-          this.playerVel.y = 0;
-          this.isOnGround = true;
+          this.isOnGround = false;
         }
-      } else {
-        this.isOnGround = false;
       }
     }
 
@@ -3139,7 +2937,7 @@ export class GameWorld {
       }
     }
 
-    // 11. Portal Energy Rings & Teleportation
+    // 11. Portal Energy Rings & Teleportation (Direct Gateway to Mayan Temple)
     if (this.candyWorldElements) {
       this.candyWorldElements.mainPortal.ring.rotation.z += 2.2 * dt;
       this.candyWorldElements.candyPortal.ring.rotation.z += 2.2 * dt;
@@ -3153,7 +2951,7 @@ export class GameWorld {
             this.playerPos.z - this.candyWorldElements.mainPortal.pos.z
           );
           if (horizDist < 4.2 && Math.abs(this.playerPos.y - this.candyWorldElements.mainPortal.pos.y) < 6.0) {
-            this.teleportToWorld('candy');
+            this.teleportToWorld('mayan_boss');
           }
         } else if (this.currentWorld === 'candy') {
           const horizDist = Math.hypot(
@@ -3167,7 +2965,7 @@ export class GameWorld {
       }
     }
 
-    // 11.1 Mayan Temple Entrance Proximity (Mundo 1 -> 500 Coins Entrance)
+    // 11.1 Mayan Temple Entrance Proximity & Auto-Walk-Through
     if (this.mayanTempleElements) {
       this.mayanTempleElements.portalRing.rotation.z += 2.0 * dt;
       if (this.currentWorld === 'main') {
@@ -3175,15 +2973,19 @@ export class GameWorld {
           this.playerPos.x - this.mayanTempleElements.portalPos.x,
           this.playerPos.z - this.mayanTempleElements.portalPos.z
         );
-        const nearTemple = distToTempleDoor < 4.5 && Math.abs(this.playerPos.y - this.mayanTempleElements.portalPos.y) < 4.5;
+        const nearTemple = distToTempleDoor < 4.8 && Math.abs(this.playerPos.y - this.mayanTempleElements.portalPos.y) < 4.8;
         if (nearTemple !== this.isNearTempleEntrance) {
           this.isNearTempleEntrance = nearTemple;
-          this.callbacks.onNearTemple?.(nearTemple, 500);
+          this.callbacks.onNearTemple?.(nearTemple, 0);
+        }
+        // Direct walk-in: If the player walks directly into the glowing portal ring (within 3.2m), enter immediately!
+        if (distToTempleDoor < 3.2 && Math.abs(this.playerPos.y - this.mayanTempleElements.portalPos.y) < 3.8 && this.portalCooldownTimer <= 0) {
+          this.teleportToWorld('mayan_boss');
         }
       } else {
         if (this.isNearTempleEntrance) {
           this.isNearTempleEntrance = false;
-          this.callbacks.onNearTemple?.(false, 500);
+          this.callbacks.onNearTemple?.(false, 0);
         }
       }
     }
@@ -3198,7 +3000,7 @@ export class GameWorld {
       } else {
         const exitPos = this.mayanBossSystem.getExitPortalPos();
         const distToExit = Math.hypot(this.playerPos.x - exitPos.x, this.playerPos.z - exitPos.z);
-        if (distToExit < 3.8 && Math.abs(this.playerPos.y - exitPos.y) < 4.5) {
+        if (distToExit < 2.8 && Math.abs(this.playerPos.y - exitPos.y) < 3.5) {
           this.teleportToWorld('main');
         }
       }
@@ -3210,7 +3012,7 @@ export class GameWorld {
     }
     const isNight = this.currentPeriod === 'night' || this.currentPeriod === 'sunset';
     this.zombieSystem?.update(dt, this.playerPos, this.currentWorld, isNight, (knockDir, isSugarZombie) => {
-      if (this.isPlayerDead || this.playerInvincibleTimer > 0) return;
+      if (this.isPlayerDead || this.playerInvincibleTimer > 0 || this.isFlying) return;
 
       if (this.isGodMode) {
         this.playerInvincibleTimer = 0.5;
@@ -3268,6 +3070,11 @@ export class GameWorld {
     // 17. Render Frame
     this.renderer.render(this.scene, this.camera);
 
+    if (!this.isWorldReadyFired) {
+      this.isWorldReadyFired = true;
+      this.callbacks.onWorldReady?.();
+    }
+
     // 18. FPS Tracking
     this.frameCount++;
     const now = performance.now();
@@ -3280,6 +3087,7 @@ export class GameWorld {
   };
 
   public teleportToWorld(target: WorldDimension) {
+    const prevWorld = this.currentWorld;
     this.currentWorld = target;
     this.portalCooldownTimer = 2.8;
 
@@ -3287,17 +3095,24 @@ export class GameWorld {
     this.triggerHaptic([30, 60, 40, 80]);
 
     if (target === 'mayan_boss') {
-      this.playerPos.set(-800, 2.0, -780);
+      const spawnPos = this.mayanBossSystem
+        ? this.mayanBossSystem.getSpawnPos()
+        : new THREE.Vector3(-700, 1.2, -678);
+      this.playerPos.copy(spawnPos);
       this.playerVel.set(0, 0, 0);
-      this.yaw = Math.PI; // Face towards the Boss Altar (-800, -800)
+      this.yaw = 0; // Look straight forward down the grand ceremonial hall towards the boss altar
       this.pitch = 0;
       this.isOnGround = true;
 
-      // Dark, ominous ancient temple atmosphere with jade green and fiery amber hues
-      this.scene.background = new THREE.Color(0x0a101d);
-      this.scene.fog = new THREE.FogExp2(0x0a101d, 0.0055);
-      this.sunLight.color.setHex(0xf59e0b);
-      this.sunMesh.material = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+      // Dark, mysterious subterranean ancient temple atmosphere
+      this.scene.background = new THREE.Color(0x0a0c10);
+      this.scene.fog = new THREE.FogExp2(0x0a0c10, 0.008);
+      this.sunLight.color.setHex(0x10b981);
+      this.sunLight.intensity = 0.35;
+      this.hemiLight.color.setHex(0x10b981);
+      this.hemiLight.groundColor.setHex(0x064e3b);
+      this.hemiLight.intensity = 0.6;
+      this.sunMesh.material = new THREE.MeshBasicMaterial({ color: 0x059669 });
 
       this.mayanBossSystem?.resetBoss();
       this.callbacks.onWorldChange?.('mayan_boss');
@@ -3313,15 +3128,26 @@ export class GameWorld {
       this.scene.background = new THREE.Color(0xfbcfe8);
       this.scene.fog = new THREE.FogExp2(0xfbcfe8, 0.0032);
       this.sunLight.color.setHex(0xffedd5);
+      this.sunLight.intensity = 1.0;
+      this.hemiLight.color.setHex(0xffffff);
+      this.hemiLight.groundColor.setHex(0xfbcfe8);
+      this.hemiLight.intensity = 1.2;
       this.sunMesh.material = new THREE.MeshBasicMaterial({ color: 0xfde047 });
 
       this.callbacks.onWorldChange?.('candy');
       this.spawnSlashParticles(this.playerPos.clone(), 0xf43f5e, 45);
     } else {
-      const groundH = this.getTerrainHeight(0, -56);
-      this.playerPos.set(0, groundH + 1.2, -56);
+      // Returning to main world
+      if (prevWorld === 'mayan_boss' && this.mayanTempleElements) {
+        // Place player safely outside the temple portal at the pyramid summit facing down the stairs
+        this.playerPos.copy(this.mayanTempleElements.portalPos).add(new THREE.Vector3(0, 0, 4.5));
+        this.yaw = 0;
+      } else {
+        const groundH = this.getTerrainHeight(0, -56);
+        this.playerPos.set(0, groundH + 1.2, -56);
+        this.yaw = 0;
+      }
       this.playerVel.set(0, 0, 0);
-      this.yaw = 0;
       this.pitch = 0;
       this.isOnGround = true;
 
@@ -3329,6 +3155,10 @@ export class GameWorld {
       this.scene.background = new THREE.Color(0x87ceeb);
       this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0038);
       this.sunLight.color.setHex(0xfffaed);
+      this.sunLight.intensity = 1.0;
+      this.hemiLight.color.setHex(0xffffff);
+      this.hemiLight.groundColor.setHex(0x445566);
+      this.hemiLight.intensity = 1.2;
       this.sunMesh.material = new THREE.MeshBasicMaterial({ color: 0xffea78 });
 
       this.callbacks.onWorldChange?.('main');
@@ -3487,7 +3317,71 @@ export class GameWorld {
     if (this.limbs) {
       const time = this.clock.getElapsedTime();
 
-      if (this.isOnGround) {
+      if (this.isFlying) {
+        const flyMoveSpeed = Math.hypot(this.playerVel.x, this.playerVel.y, this.playerVel.z);
+        const isHovering = flyMoveSpeed < 1.8;
+        const rollInput = (this.keyState['KeyD'] || this.keyState['ArrowRight'] ? 1 : 0) - (this.keyState['KeyA'] || this.keyState['ArrowLeft'] ? 1 : 0) + this.moveInput.x;
+
+        if (isHovering) {
+          // 🕊️ Graceful Hovering Flight Pose: Floating gently on air currents
+          const hoverBob = Math.sin(time * 3.2) * 0.06;
+          this.limbs.torso.position.y = THREE.MathUtils.lerp(this.limbs.torso.position.y, 0.82 + hoverBob, 8 * dt);
+          this.limbs.torso.rotation.x = THREE.MathUtils.lerp(this.limbs.torso.rotation.x, 0.08, 8 * dt);
+          this.limbs.torso.rotation.y = THREE.MathUtils.lerp(this.limbs.torso.rotation.y, Math.sin(time * 1.5) * 0.04, 6 * dt);
+          this.limbs.torso.rotation.z = THREE.MathUtils.lerp(this.limbs.torso.rotation.z, Math.cos(time * 1.8) * 0.03, 6 * dt);
+
+          this.limbs.head.position.y = THREE.MathUtils.lerp(this.limbs.head.position.y, 1.38 + hoverBob, 8 * dt);
+          this.limbs.head.rotation.x = THREE.MathUtils.lerp(this.limbs.head.rotation.x, -0.05, 8 * dt);
+          this.limbs.head.rotation.y = THREE.MathUtils.lerp(this.limbs.head.rotation.y, 0, 8 * dt);
+
+          const legSway = Math.sin(time * 2.2) * 0.12;
+          this.limbs.leftLeg.rotation.x = THREE.MathUtils.lerp(this.limbs.leftLeg.rotation.x, -0.25 + legSway, 8 * dt);
+          this.limbs.rightLeg.rotation.x = THREE.MathUtils.lerp(this.limbs.rightLeg.rotation.x, -0.20 - legSway, 8 * dt);
+          this.limbs.leftLeg.rotation.z = THREE.MathUtils.lerp(this.limbs.leftLeg.rotation.z, -0.12, 8 * dt);
+          this.limbs.rightLeg.rotation.z = THREE.MathUtils.lerp(this.limbs.rightLeg.rotation.z, 0.12, 8 * dt);
+
+          this.limbs.leftArm.rotation.x = THREE.MathUtils.lerp(this.limbs.leftArm.rotation.x, -0.20 + Math.sin(time * 2.5) * 0.06, 8 * dt);
+          this.limbs.leftArm.rotation.z = THREE.MathUtils.lerp(this.limbs.leftArm.rotation.z, 0.35, 8 * dt);
+
+          if (!this.isSwingingSword) {
+            this.limbs.rightArm.rotation.x = THREE.MathUtils.lerp(this.limbs.rightArm.rotation.x, -0.20 + Math.cos(time * 2.5) * 0.06, 8 * dt);
+            this.limbs.rightArm.rotation.z = THREE.MathUtils.lerp(this.limbs.rightArm.rotation.z, -0.35, 8 * dt);
+          }
+
+          if (this.limbs.cape) {
+            this.limbs.cape.rotation.x = THREE.MathUtils.lerp(this.limbs.cape.rotation.x, 0.45 + Math.sin(time * 8) * 0.12, 10 * dt);
+          }
+        } else {
+          // 🚀 Supersonic Superhero Soaring Flight Pose (Superman / Santiago VIP)
+          const forwardTilt = Math.min(1.25, 0.65 + (flyMoveSpeed / 35.0) * 0.6);
+          this.limbs.torso.position.y = THREE.MathUtils.lerp(this.limbs.torso.position.y, 0.76, 12 * dt);
+          this.limbs.torso.rotation.x = THREE.MathUtils.lerp(this.limbs.torso.rotation.x, forwardTilt, 12 * dt);
+          this.limbs.torso.rotation.y = THREE.MathUtils.lerp(this.limbs.torso.rotation.y, rollInput * 0.25, 10 * dt);
+          this.limbs.torso.rotation.z = THREE.MathUtils.lerp(this.limbs.torso.rotation.z, -rollInput * 0.35, 10 * dt);
+
+          this.limbs.head.position.y = THREE.MathUtils.lerp(this.limbs.head.position.y, 1.34, 12 * dt);
+          this.limbs.head.rotation.x = THREE.MathUtils.lerp(this.limbs.head.rotation.x, -forwardTilt + 0.22, 12 * dt);
+          this.limbs.head.rotation.y = THREE.MathUtils.lerp(this.limbs.head.rotation.y, 0, 10 * dt);
+
+          const legFlutter = Math.sin(time * 16) * 0.08;
+          this.limbs.leftLeg.rotation.x = THREE.MathUtils.lerp(this.limbs.leftLeg.rotation.x, -0.15 + legFlutter, 12 * dt);
+          this.limbs.rightLeg.rotation.x = THREE.MathUtils.lerp(this.limbs.rightLeg.rotation.x, -0.15 - legFlutter, 12 * dt);
+          this.limbs.leftLeg.rotation.z = THREE.MathUtils.lerp(this.limbs.leftLeg.rotation.z, -0.06, 10 * dt);
+          this.limbs.rightLeg.rotation.z = THREE.MathUtils.lerp(this.limbs.rightLeg.rotation.z, 0.06, 10 * dt);
+
+          this.limbs.leftArm.rotation.x = THREE.MathUtils.lerp(this.limbs.leftArm.rotation.x, -Math.PI * 0.82, 12 * dt);
+          this.limbs.leftArm.rotation.z = THREE.MathUtils.lerp(this.limbs.leftArm.rotation.z, 0.15, 10 * dt);
+
+          if (!this.isSwingingSword) {
+            this.limbs.rightArm.rotation.x = THREE.MathUtils.lerp(this.limbs.rightArm.rotation.x, -Math.PI * 0.82, 12 * dt);
+            this.limbs.rightArm.rotation.z = THREE.MathUtils.lerp(this.limbs.rightArm.rotation.z, -0.15, 10 * dt);
+          }
+
+          if (this.limbs.cape) {
+            this.limbs.cape.rotation.x = THREE.MathUtils.lerp(this.limbs.cape.rotation.x, 1.45 + Math.sin(time * 24) * 0.18, 14 * dt);
+          }
+        }
+      } else if (this.isOnGround) {
         if (horizontalSpeed > 0.4) {
           // Running / Walking animation
           const stepSpeed = this.isSprinting ? 14 : 9;
@@ -3659,6 +3553,7 @@ export class GameWorld {
   // --- CLEANUP ---
   public destroy() {
     this.stop();
+    this.weatherSystem?.dispose();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('resize', this.onResize);

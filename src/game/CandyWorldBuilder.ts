@@ -428,52 +428,71 @@ export class CandyWorldBuilder {
 
     group.add(candyPortalGroup);
 
-    // 8.2 Portal inside Main World (Teleports to Candy World)
+    // 8.2 Portal inside Main World (Teleports to Mayan Temple)
     const mainPortalGroup = new THREE.Group();
     const mainPortalGroundH = getTerrainHeightFn ? getTerrainHeightFn(18, -18) : 0.4;
     const mainPortalPos = new THREE.Vector3(18, mainPortalGroundH, -18);
     mainPortalGroup.position.copy(mainPortalPos);
 
-    // Candy Base Platform
+    // Mayan Stone Base Platform
+    const darkAndesiteMat = new THREE.MeshStandardMaterial({
+      color: 0x292524,
+      roughness: 0.8,
+      flatShading: true,
+    });
+    const jadeGlowMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981,
+      emissive: 0x059669,
+      emissiveIntensity: 2.2,
+      roughness: 0.2,
+    });
+    const goldOrnamentMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      emissive: 0xb45309,
+      emissiveIntensity: 0.8,
+      metalness: 0.8,
+      roughness: 0.2,
+    });
+
     const mainPortalBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.5, 3.8, 0.4, 24),
-      chocolateMilkMat
+      new THREE.CylinderGeometry(3.6, 4.0, 0.4, 16),
+      darkAndesiteMat
     );
     mainPortalBase.position.y = 0.2;
     mainPortalBase.receiveShadow = true;
     mainPortalGroup.add(mainPortalBase);
 
-    // Candy Cane Arch
-    const mainArch = new THREE.Mesh(archGeom, candyCaneRedMat);
+    // Mayan Stone Arch
+    const mainArch = new THREE.Mesh(archGeom, darkAndesiteMat);
     mainArch.position.set(0, 2.6, 0);
     mainArch.castShadow = true;
     mainPortalGroup.add(mainArch);
 
-    const mainPillar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 2.6, 12), candyCaneWhiteMat);
-    mainPillar1.position.set(-2.4, 1.3, 0);
+    const mainPillar1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.8, 0.8), darkAndesiteMat);
+    mainPillar1.position.set(-2.4, 1.4, 0);
     mainPortalGroup.add(mainPillar1);
 
-    const mainPillar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.42, 2.6, 12), candyCaneWhiteMat);
-    mainPillar2.position.set(2.4, 1.3, 0);
+    const mainPillar2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.8, 0.8), darkAndesiteMat);
+    mainPillar2.position.set(2.4, 1.4, 0);
     mainPortalGroup.add(mainPillar2);
 
-    // Swirling Pink / Purple Candy Vortex
+    // Swirling Jade Green Mayan Vortex Ring
     const mainVortexMat = new THREE.MeshBasicMaterial({
-      color: 0xf43f5e,
+      color: 0x10b981,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
     });
     const mainPortalRing = new THREE.Mesh(vortexGeom, mainVortexMat);
     mainPortalRing.position.set(0, 2.6, 0);
     mainPortalGroup.add(mainPortalRing);
 
-    // Sky Beacon Beam (Pink/Magenta - visible from entire world!)
+    // Sky Beacon Beam (Mystic Emerald Green)
     const mainBeamGeom = new THREE.CylinderGeometry(0.9, 0.9, 80, 16);
     const mainBeamMat = new THREE.MeshBasicMaterial({
-      color: 0xf43f5e,
+      color: 0x10b981,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.5,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
@@ -481,15 +500,13 @@ export class CandyWorldBuilder {
     mainBeam.position.set(0, 40, 0);
     mainPortalGroup.add(mainBeam);
 
-    // Floating Giant Lollipop Icon above Portal
-    const lollipopIconMat = new THREE.MeshStandardMaterial({ color: 0xec4899, roughness: 0.2 });
-    const lollipopIcon = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.25, 20), lollipopIconMat);
-    lollipopIcon.position.set(0, 5.8, 0);
-    lollipopIcon.rotation.z = Math.PI / 2;
-    mainPortalGroup.add(lollipopIcon);
+    // Floating Golden Serpent / Sun Icon above Portal
+    const sunIcon = new THREE.Mesh(new THREE.OctahedronGeometry(0.8, 0), goldOrnamentMat);
+    sunIcon.position.set(0, 5.8, 0);
+    mainPortalGroup.add(sunIcon);
 
     // Overhead Sign
-    const mainSign = createPortalSign('🍭 MUNDO CARAMELO', '« Entra al Portal »', '#f43f5e');
+    const mainSign = createPortalSign('🏛️ TEMPLO MAYA', '« Entra para enfrentar al Rey Zombi »', '#10b981');
     mainSign.position.set(0, 4.8, 0);
     mainPortalGroup.add(mainSign);
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { soundEngine } from '../audio/soundEngine';
 import { MayanBossState } from '../types';
+import { MayanTempleInteriorBuilder, MayanTempleInteriorElements } from './MayanTempleInteriorBuilder';
 
 export interface MiniZombieEntity {
   id: number;
@@ -35,6 +36,7 @@ export class MayanBossSystem {
   private originX = -700;
   private originZ = -700;
   private arenaGroup = new THREE.Group();
+  private interiorElements: MayanTempleInteriorElements | null = null;
 
   // Boss Model
   private bossGroup = new THREE.Group();
@@ -62,7 +64,7 @@ export class MayanBossSystem {
   private hitFlashTimer = 0;
   private isDefeated = false;
   private bossWalkCycle = 0;
-  private bossPos = new THREE.Vector3(-700, 0, -700);
+  private bossPos = new THREE.Vector3(-700, 0, -706);
 
   // Attack Entities
   private miniZombies: MiniZombieEntity[] = [];
@@ -114,192 +116,38 @@ export class MayanBossSystem {
     return this.platforms;
   }
 
-  public getExitPortalPos(): THREE.Vector3 {
-    return new THREE.Vector3(this.originX, 1.2, this.originZ + 24);
+  public getSpawnPos(): THREE.Vector3 {
+    return this.interiorElements
+      ? this.interiorElements.spawnPos.clone()
+      : new THREE.Vector3(this.originX, 1.2, this.originZ + 22.0);
   }
 
-  // --- 1. BUILD SUBTERRANEAN MAYAN ARENA ---
+  public getExitPortalPos(): THREE.Vector3 {
+    return this.interiorElements
+      ? this.interiorElements.exitPortalPos.clone()
+      : new THREE.Vector3(this.originX, 1.2, this.originZ + 27.5);
+  }
+
+  // --- 1. BUILD DEDICATED MAYAN TEMPLE INTERIOR STRUCTURE ---
   private buildArena() {
-    this.arenaGroup = new THREE.Group();
-    this.arenaGroup.position.set(this.originX, 0, this.originZ);
-
-    // Materials
-    const darkStoneMat = new THREE.MeshStandardMaterial({
-      color: 0x1c1917, // Deep volcanic stone
-      roughness: 0.85,
-      flatShading: true,
-    });
-    const carvedStoneMat = new THREE.MeshStandardMaterial({
-      color: 0x44403c, // Carved weathered Mayan andesite
-      roughness: 0.7,
-    });
-    const jadeMat = new THREE.MeshStandardMaterial({
-      color: 0x059669,
-      emissive: 0x047857,
-      emissiveIntensity: 0.8,
-      roughness: 0.2,
-    });
-    const goldMat = new THREE.MeshStandardMaterial({
-      color: 0xd97706,
-      emissive: 0xb45309,
-      emissiveIntensity: 0.4,
-      roughness: 0.3,
-      metalness: 0.6,
-    });
-
-    // 1. Vast Octagonal Arena Floor (Radius 32m)
-    const floorGeom = new THREE.CylinderGeometry(32, 34, 1.2, 16);
-    const floorMesh = new THREE.Mesh(floorGeom, darkStoneMat);
-    floorMesh.position.set(0, -0.6, 0);
-    floorMesh.receiveShadow = true;
-    this.arenaGroup.add(floorMesh);
-
-    const floorBox = new THREE.Box3().setFromCenterAndSize(
-      new THREE.Vector3(this.originX, -0.6, this.originZ),
-      new THREE.Vector3(64, 1.2, 64)
+    this.interiorElements = MayanTempleInteriorBuilder.build(
+      this.scene,
+      this.originX,
+      0,
+      this.originZ
     );
-    this.colliders.push(floorBox);
-    this.platforms.push({ box: floorBox, topY: 0 });
-
-    // 2. Central Mayan Sun Stone Calendar Emblem on floor
-    const calendarGeom = new THREE.RingGeometry(2, 14, 24);
-    const calendarMat = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      emissive: 0x059669,
-      emissiveIntensity: 0.5,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.7,
-    });
-    const calendarMesh = new THREE.Mesh(calendarGeom, calendarMat);
-    calendarMesh.rotation.x = -Math.PI / 2;
-    calendarMesh.position.set(0, 0.03, 0);
-    this.arenaGroup.add(calendarMesh);
-
-    // Inner Gold Ring
-    const innerRingGeom = new THREE.RingGeometry(0.5, 2.0, 16);
-    const innerRingMesh = new THREE.Mesh(innerRingGeom, goldMat);
-    innerRingMesh.rotation.x = -Math.PI / 2;
-    innerRingMesh.position.set(0, 0.04, 0);
-    this.arenaGroup.add(innerRingMesh);
-
-    // 3. Perimeter High Monolithic Walls (Radius 32m, Height 14m)
-    const wallCount = 16;
-    for (let i = 0; i < wallCount; i++) {
-      const angle = (i / wallCount) * Math.PI * 2;
-      const wx = Math.cos(angle) * 31;
-      const wz = Math.sin(angle) * 31;
-
-      // Wall block
-      const wallGeom = new THREE.BoxGeometry(13, 16, 2.5);
-      const wallMesh = new THREE.Mesh(wallGeom, carvedStoneMat);
-      wallMesh.position.set(wx, 8, wz);
-      wallMesh.rotation.y = -angle + Math.PI / 2;
-      wallMesh.castShadow = true;
-      wallMesh.receiveShadow = true;
-      this.arenaGroup.add(wallMesh);
-
-      const wBox = new THREE.Box3().setFromCenterAndSize(
-        new THREE.Vector3(this.originX + wx, 8, this.originZ + wz),
-        new THREE.Vector3(12, 16, 12)
-      );
-      this.colliders.push(wBox);
-    }
-
-    // 4. 8 Carved Mayan Serpent Columns with Jade Braziers
-    const pillarAngles = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75].map((a) => a * Math.PI);
-    pillarAngles.forEach((ang) => {
-      const px = Math.cos(ang) * 20;
-      const pz = Math.sin(ang) * 20;
-
-      // Column Base
-      const baseGeom = new THREE.BoxGeometry(2.4, 1.2, 2.4);
-      const base = new THREE.Mesh(baseGeom, darkStoneMat);
-      base.position.set(px, 0.6, pz);
-      base.castShadow = true;
-      this.arenaGroup.add(base);
-
-      // Carved Shaft
-      const shaftGeom = new THREE.CylinderGeometry(0.85, 0.95, 10, 8);
-      const shaft = new THREE.Mesh(shaftGeom, carvedStoneMat);
-      shaft.position.set(px, 5.6, pz);
-      shaft.castShadow = true;
-      this.arenaGroup.add(shaft);
-
-      // Brazier Fire Bowl
-      const bowlGeom = new THREE.CylinderGeometry(1.2, 0.7, 0.8, 8);
-      const bowl = new THREE.Mesh(bowlGeom, goldMat);
-      bowl.position.set(px, 3.2, pz);
-      this.arenaGroup.add(bowl);
-
-      // Green Mystical Flame
-      const flameGeom = new THREE.ConeGeometry(0.6, 1.2, 8);
-      const flameMat = new THREE.MeshStandardMaterial({
-        color: 0x10b981,
-        emissive: 0x34d399,
-        emissiveIntensity: 2.2,
-      });
-      const flame = new THREE.Mesh(flameGeom, flameMat);
-      flame.position.set(px, 4.0, pz);
-      this.arenaGroup.add(flame);
-
-      // Point Light
-      const pLight = new THREE.PointLight(0x10b981, 2.4, 16);
-      pLight.position.set(px, 4.2, pz);
-      this.arenaGroup.add(pLight);
-
-      const pBox = new THREE.Box3().setFromCenterAndSize(
-        new THREE.Vector3(this.originX + px, 5, this.originZ + pz),
-        new THREE.Vector3(2.4, 10, 2.4)
-      );
-      this.colliders.push(pBox);
-    });
-
-    // 5. Exit / Valley Return Portal Archway (South Side, +Z)
-    const portalGroup = new THREE.Group();
-    portalGroup.position.set(0, 0, 24);
-
-    // Stone Gate frame
-    const pPostGeom = new THREE.BoxGeometry(1.4, 5.5, 1.4);
-    const postL = new THREE.Mesh(pPostGeom, carvedStoneMat);
-    postL.position.set(-2.5, 2.75, 0);
-    portalGroup.add(postL);
-
-    const postR = new THREE.Mesh(pPostGeom, carvedStoneMat);
-    postR.position.set(2.5, 2.75, 0);
-    portalGroup.add(postR);
-
-    const pBeamGeom = new THREE.BoxGeometry(6.4, 1.2, 1.6);
-    const beam = new THREE.Mesh(pBeamGeom, carvedStoneMat);
-    beam.position.set(0, 5.8, 0);
-    portalGroup.add(beam);
-
-    // Glowing Exit Portal Ring
-    const exitRingGeom = new THREE.TorusGeometry(2.1, 0.2, 16, 32);
-    const exitRingMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
-      emissiveIntensity: 2.0,
-    });
-    this.exitPortalRing = new THREE.Mesh(exitRingGeom, exitRingMat);
-    this.exitPortalRing.position.set(0, 2.8, 0);
-    portalGroup.add(this.exitPortalRing);
-
-    const exitLight = new THREE.PointLight(0x38bdf8, 2.0, 10);
-    exitLight.position.set(0, 2.8, 0);
-    portalGroup.add(exitLight);
-
-    this.exitPortalMesh = portalGroup;
-    this.arenaGroup.add(portalGroup);
-
-    this.scene.add(this.arenaGroup);
+    this.arenaGroup = this.interiorElements.group;
+    this.colliders = this.interiorElements.colliders;
+    this.platforms = this.interiorElements.platforms;
+    this.exitPortalRing = this.interiorElements.exitPortalRing;
+    this.bossPos.copy(this.interiorElements.bossStartPos);
   }
 
   // --- 2. BUILD GIANT MAYAN ZOMBIE BOSS ---
   private buildBoss() {
     this.bossGroup = new THREE.Group();
     this.bossGroup.position.copy(this.bossPos);
-    this.bossGroup.scale.set(2.8, 2.8, 2.8); // 2.8x Giant Boss!
+    this.bossGroup.scale.set(3.6, 3.6, 3.6); // Colossal 3.6x Mayan Zombie King!
 
     // Boss Materials
     const bossSkinMat = new THREE.MeshStandardMaterial({
@@ -531,7 +379,11 @@ export class MayanBossSystem {
     this.isInvulnerable = true;
     this.hasSpawnedVictoryReward = false;
 
-    this.bossPos.set(this.originX, 0, this.originZ);
+    this.bossPos.copy(
+      this.interiorElements
+        ? this.interiorElements.bossStartPos
+        : new THREE.Vector3(this.originX, 0, this.originZ - 6.0)
+    );
     this.bossGroup.position.copy(this.bossPos);
     this.bossGroup.visible = true;
 
@@ -1012,10 +864,10 @@ export class MayanBossSystem {
     }
 
     // 2. Check hitting the Boss
-    const toBoss = this.bossPos.clone().add(new THREE.Vector3(0, 2.0, 0)).sub(playerPos);
+    const toBoss = this.bossPos.clone().add(new THREE.Vector3(0, 2.5, 0)).sub(playerPos);
     const distToBoss = toBoss.length();
 
-    if (distToBoss < 5.8) {
+    if (distToBoss < 7.5) {
       const dot = lookDir.dot(toBoss.clone().normalize());
       if (dot > 0.3) {
         if (this.isInvulnerable || this.phase !== 'tired') {

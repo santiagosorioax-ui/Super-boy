@@ -19,7 +19,8 @@ import {
   LogOut,
   User as UserIcon,
   CloudCheck,
-  Crown
+  Crown,
+  Shirt
 } from 'lucide-react';
 import { GameSettings, ControlDevice } from '../types';
 import { User } from 'firebase/auth';
@@ -29,6 +30,7 @@ interface StartScreenProps {
   onOpenSettings: () => void;
   onOpenHelp: () => void;
   onOpenLeaderboard?: () => void;
+  onOpenWardrobe?: () => void;
   isVip?: boolean;
   onOpenVipProfile?: () => void;
   settings: GameSettings;
@@ -46,6 +48,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   onOpenSettings,
   onOpenHelp,
   onOpenLeaderboard,
+  onOpenWardrobe,
   isVip = false,
   onOpenVipProfile,
   settings,
@@ -262,6 +265,19 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             {isMusicOn ? <Volume2 className="w-3.5 h-3.5 text-amber-400" /> : <VolumeX className="w-3.5 h-3.5 text-slate-400" />}
             <span className="hidden sm:inline">Música</span>
           </button>
+
+          {/* Wardrobe & Customization */}
+          {onOpenWardrobe && (
+            <button
+              id="start-btn-wardrobe"
+              onClick={onOpenWardrobe}
+              className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-purple-950/80 hover:bg-purple-900/90 border border-purple-500/40 text-xs font-semibold text-purple-200 hover:text-white transition shadow-sm"
+              title="Armario: Personalizar Ropa y Personaje"
+            >
+              <Shirt className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden sm:inline">Ropa</span>
+            </button>
+          )}
 
           {/* Help Button */}
           <button

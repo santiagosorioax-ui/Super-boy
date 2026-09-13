@@ -1,6 +1,6 @@
 {
   "name": "Juego 3D de Santi",
-  "description": "SUPER BOY: Aventura 3D con ciclo día/noche, zombis nocturnos, tienda de armas, Mundo de Caramelo, y el Templo Maya accesible (500 monedas) con el Final Boss Zombi (bolas de fuego, mini-zombis, golpes sísmicos, estado de cansancio y 2000 monedas de recompensa).",
+  "description": "SUPER BOY: Aventura 3D con armario y tienda de ropa personalizable (género hombre/mujer, gorras, sombreros, camisas, pantalones, zapatos, mochilas), ciclo día/noche, clima dinámico, zombis nocturnos, tienda de armas, Mundo de Caramelo, y el Templo Maya con el Final Boss Zombi.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

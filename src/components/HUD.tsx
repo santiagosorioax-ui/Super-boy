@@ -27,9 +27,12 @@ import {
   LogOut,
   User as UserIcon,
   Cloud,
-  Crown
+  Crown,
+  CloudRain,
+  CloudFog,
+  Wind
 } from 'lucide-react';
-import { TimeState, PlayerInventory, WorldDimension, MayanBossState, ControlDevice } from '../types';
+import { TimeState, PlayerInventory, WorldDimension, MayanBossState, ControlDevice, WeatherState, WeatherType } from '../types';
 import { User } from 'firebase/auth';
 
 interface HUDProps {
@@ -37,6 +40,8 @@ interface HUDProps {
   collectedCoins: number;
   totalCoins: number;
   timeState: TimeState;
+  weatherState?: WeatherState | null;
+  onSelectWeather?: (type: WeatherType) => void;
   combo: number;
   fps?: number;
   showFps?: boolean;
@@ -69,10 +74,15 @@ interface HUDProps {
   onToggleSprint: (sprint: boolean) => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
+  onOpenWardrobe?: () => void;
   onOpenShop?: () => void;
   onOpenMultiplierShop?: () => void;
   onReturnToSpawn?: () => void;
+  onTeleportToTemple?: () => void;
   onSwingSword?: () => void;
+  isFlying?: boolean;
+  onToggleFlight?: () => void;
+  onFlyVertical?: (dir: -1 | 0 | 1) => void;
   // Touch Joy Callbacks
   onJoyTouchStart: (e: React.TouchEvent) => void;
   onJoyTouchMove: (e: React.TouchEvent) => void;
@@ -90,6 +100,8 @@ export const HUD: React.FC<HUDProps> = ({
   collectedCoins,
   totalCoins,
   timeState,
+  weatherState,
+  onSelectWeather,
   combo,
   fps = 60,
   showFps = false,
@@ -122,10 +134,15 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleSprint,
   onOpenSettings,
   onOpenHelp,
+  onOpenWardrobe,
   onOpenShop,
   onOpenMultiplierShop,
   onReturnToSpawn,
+  onTeleportToTemple,
   onSwingSword,
+  isFlying = false,
+  onToggleFlight,
+  onFlyVertical,
   onJoyTouchStart,
   onJoyTouchMove,
   onJoyTouchEnd,
@@ -165,6 +182,56 @@ export const HUD: React.FC<HUDProps> = ({
   };
 
   const period = getPeriodBadge();
+
+  const getWeatherBadge = () => {
+    if (!weatherState) {
+      return {
+        icon: <Sun className="w-3.5 h-3.5 text-amber-300" />,
+        label: 'Despejado',
+        detail: 'Normal',
+        bg: 'bg-amber-950/70 border-amber-500/40 text-amber-200',
+        alert: null,
+      };
+    }
+
+    switch (weatherState.type) {
+      case 'rain':
+        return {
+          icon: <CloudRain className="w-3.5 h-3.5 text-sky-400 animate-bounce" />,
+          label: 'Lluvia',
+          detail: 'Suelo resbaladizo',
+          bg: 'bg-sky-950/85 border-sky-400/60 text-sky-200 shadow-sky-500/20',
+          alert: '⚠️ Piso resbaladizo: mayor inercia al moverte',
+        };
+      case 'fog':
+        return {
+          icon: <CloudFog className="w-3.5 h-3.5 text-slate-300 animate-pulse" />,
+          label: 'Neblina',
+          detail: 'Baja visibilidad',
+          bg: 'bg-slate-900/85 border-slate-500/50 text-slate-200',
+          alert: '🌫️ Neblina densa: visibilidad reducida',
+        };
+      case 'wind':
+        return {
+          icon: <Wind className="w-3.5 h-3.5 text-teal-300 animate-pulse" />,
+          label: 'Viento Fuerte',
+          detail: `${weatherState.windSpeed} m/s`,
+          bg: 'bg-teal-950/85 border-teal-400/60 text-teal-200 shadow-teal-500/20',
+          alert: `💨 Ráfagas de ${weatherState.windSpeed} m/s empujándote`,
+        };
+      case 'clear':
+      default:
+        return {
+          icon: <Sun className="w-3.5 h-3.5 text-amber-300" />,
+          label: 'Despejado',
+          detail: 'Cielo claro',
+          bg: 'bg-amber-950/70 border-amber-500/40 text-amber-200',
+          alert: null,
+        };
+    }
+  };
+
+  const weatherBadge = getWeatherBadge();
   const coinProgress = Math.min(100, Math.round((collectedCoins / (totalCoins || 1)) * 100));
 
   const hasActiveBuffs = inventory && (
@@ -231,6 +298,20 @@ export const HUD: React.FC<HUDProps> = ({
               {inventory?.health ?? 5}/5
             </span>
           </div>
+
+          {/* Dimension Tag */}
+          {currentDimension !== 'main' && (
+            <div
+              id="hud-dimension-tag"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black tracking-wider uppercase backdrop-blur-md border shadow-lg ${
+                currentDimension === 'mayan_boss'
+                  ? 'bg-emerald-950/90 border-emerald-500/70 text-emerald-300'
+                  : 'bg-pink-950/90 border-pink-500/70 text-pink-300'
+              }`}
+            >
+              <span>{currentDimension === 'mayan_boss' ? '🏛️ Templo Maya' : '🍭 Mundo Caramelo'}</span>
+            </div>
+          )}
         </div>
 
         {/* Center: Day/Night Clock Widget & Optional Zombie/FPS Indicators */}
@@ -261,6 +342,32 @@ export const HUD: React.FC<HUDProps> = ({
               </span>
             </div>
           </div>
+
+          {/* Dynamic Weather Widget */}
+          <button
+            id="hud-weather-widget"
+            type="button"
+            onClick={() => {
+              if (onSelectWeather && weatherState) {
+                const order: WeatherType[] = ['clear', 'rain', 'fog', 'wind'];
+                const currIdx = order.indexOf(weatherState.type);
+                const nextType = order[(currIdx + 1) % order.length];
+                onSelectWeather(nextType);
+              }
+            }}
+            className={`flex items-center gap-1.5 backdrop-blur-md border rounded-xl px-2.5 py-1 shadow-md transition-all select-none hover:scale-105 active:scale-95 ${weatherBadge.bg}`}
+            title={weatherState ? `${weatherState.description} (Haz clic para alternar clima)` : 'Clima dinámico'}
+          >
+            {weatherBadge.icon}
+            <div className="flex flex-col text-left">
+              <span className="text-xs font-bold tracking-wider leading-none">
+                {weatherBadge.label}
+              </span>
+              <span className="text-[9px] opacity-80 uppercase tracking-wider font-semibold mt-0.5 leading-none">
+                {weatherBadge.detail}
+              </span>
+            </div>
+          </button>
 
           {/* FPS Badge if enabled */}
           {showFps && (
@@ -295,13 +402,13 @@ export const HUD: React.FC<HUDProps> = ({
           )}
         </div>
 
-        {/* Right: Quick Action Controls (Sound, Outfits, Leaderboard, Help, Settings) */}
-        <div className="flex items-center gap-1.5">
+        {/* Right: Quick Action Controls (Sound, Outfits, Leaderboard, Help, Settings) - Shrunk as requested */}
+        <div className="flex items-center gap-1">
           {/* Google Auth Status / Cloud Save */}
           {currentUser ? (
             <div
               id="hud-user-profile"
-              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl backdrop-blur-md shadow-md text-xs border ${
+              className={`hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg backdrop-blur-md shadow-sm text-[11px] border ${
                 isVip
                   ? 'bg-amber-950/90 border-amber-400/80 text-amber-200'
                   : 'bg-slate-900/80 border-slate-700/80 text-slate-200'
@@ -313,21 +420,21 @@ export const HUD: React.FC<HUDProps> = ({
               }
             >
               {isVip ? (
-                <Crown className="w-4 h-4 text-amber-400 fill-amber-400 animate-bounce" />
+                <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400 animate-bounce" />
               ) : currentUser.photoURL ? (
                 <img
                   src={currentUser.photoURL}
                   alt=""
                   referrerPolicy="no-referrer"
-                  className="w-4 h-4 rounded-full border border-emerald-400/70"
+                  className="w-3.5 h-3.5 rounded-full border border-emerald-400/70"
                 />
               ) : (
-                <UserIcon className="w-3.5 h-3.5 text-amber-400" />
+                <UserIcon className="w-3 h-3 text-amber-400" />
               )}
-              <span className={`font-semibold text-[11px] max-w-[90px] truncate ${isVip ? 'text-amber-300 font-black' : 'text-slate-200'}`}>
-                {isVip ? 'Santiago VIP' : currentUser.displayName?.split(' ')[0] || 'Jugador'}
+              <span className={`font-semibold text-[10px] max-w-[80px] truncate ${isVip ? 'text-amber-300 font-black' : 'text-slate-200'}`}>
+                {isVip ? 'Santiago' : currentUser.displayName?.split(' ')[0] || 'Jugador'}
               </span>
-              <Cloud className={`w-3 h-3 ${isVip ? 'text-amber-400' : 'text-emerald-400'}`} />
+              <Cloud className={`w-2.5 h-2.5 ${isVip ? 'text-amber-400' : 'text-emerald-400'}`} />
             </div>
           ) : (
             <button
@@ -338,31 +445,55 @@ export const HUD: React.FC<HUDProps> = ({
                 onSignInGoogle?.();
               }}
               title="Guardar partida en Firebase con Google"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-600/80 hover:bg-blue-500 border border-blue-400/60 text-white font-bold text-xs shadow-md transition active:scale-95 touch-none select-none"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/80 hover:bg-blue-500 border border-blue-400/60 text-white font-bold text-[10px] shadow-sm transition active:scale-95 touch-none select-none"
             >
-              <LogIn className="w-3.5 h-3.5 text-blue-200" />
-              <span className="hidden sm:inline text-[11px]">Guardar</span>
+              <LogIn className="w-3 h-3 text-blue-200" />
+              <span className="hidden sm:inline text-[10px]">Guardar</span>
             </button>
           )}
 
           {/* VIP Santiago Control Button */}
           {isVip && (
-            <button
-              id="hud-btn-vip"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onOpenVipProfile?.();
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenVipProfile?.();
-              }}
-              aria-label="Panel VIP Dios"
-              title="Panel VIP Santiago - Modo Dios y Poderes Ilimitados"
-              className="p-2 rounded-xl border border-amber-400 bg-gradient-to-tr from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-500/30 transition active:scale-95 touch-none select-none animate-pulse"
-            >
-              <Crown className="w-4 h-4 text-slate-950 fill-slate-950" />
-            </button>
+            <>
+              <button
+                id="hud-btn-vip"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onOpenVipProfile?.();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenVipProfile?.();
+                }}
+                aria-label="Panel VIP Dios"
+                title="Panel VIP Santiago - Modo Dios y Poderes Ilimitados"
+                className="p-1.5 rounded-lg border border-amber-400 bg-gradient-to-tr from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-black shadow-md shadow-amber-500/30 transition active:scale-95 touch-none select-none animate-pulse"
+              >
+                <Crown className="w-3.5 h-3.5 text-slate-950 fill-slate-950" />
+              </button>
+
+              {/* VIP Flight & Noclip Mode Button */}
+              <button
+                id="hud-btn-fly"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  (e.currentTarget as HTMLElement)?.blur();
+                  onToggleFlight?.();
+                }}
+                aria-label="Volar y Atravesar Estructuras"
+                title="Volar a Super Velocidad y Atravesar Estructuras (Noclip) [Tecla G]"
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none cursor-pointer font-black text-[10px] ${
+                  isFlying
+                    ? 'bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-300 border-yellow-200 text-slate-950 ring-1 ring-yellow-400 shadow-yellow-500/50 animate-pulse'
+                    : 'bg-slate-900/85 hover:bg-slate-800 border-sky-400/60 text-sky-300 hover:text-white'
+                }`}
+              >
+                <span className="text-xs leading-none">🕊️</span>
+                <span className="text-[10px] font-black tracking-wide hidden sm:inline">
+                  {isFlying ? 'NOCLIP' : 'VOLAR'}
+                </span>
+              </button>
+            </>
           )}
 
           {/* Leaderboard High Scores Button */}
@@ -378,9 +509,9 @@ export const HUD: React.FC<HUDProps> = ({
             }}
             aria-label="Ranking Global"
             title="Ranking de Mejores Jugadores"
-            className="p-2 rounded-xl border border-amber-500/40 bg-amber-950/80 hover:bg-amber-900/80 backdrop-blur-md text-amber-300 hover:text-amber-100 shadow-md transition active:scale-95 touch-none select-none"
+            className="p-1.5 rounded-lg border border-amber-500/40 bg-amber-950/80 hover:bg-amber-900/80 backdrop-blur-md text-amber-300 hover:text-amber-100 shadow-sm transition active:scale-95 touch-none select-none"
           >
-            <Trophy className="w-4 h-4 text-amber-400" />
+            <Trophy className="w-3.5 h-3.5 text-amber-400" />
           </button>
 
           {/* Control Mode Toggle Button (PC vs Celular) */}
@@ -396,7 +527,7 @@ export const HUD: React.FC<HUDProps> = ({
             }}
             aria-label={controlMode === 'mobile' ? 'Modo Celular (Táctil)' : 'Modo PC (Teclado/Ratón)'}
             title={controlMode === 'mobile' ? 'Modo Celular (Clic para cambiar a PC)' : 'Modo PC (Clic para cambiar a Celular)'}
-            className={`p-2 rounded-xl border backdrop-blur-md shadow-md transition active:scale-95 touch-none select-none flex items-center gap-1 text-xs font-bold ${
+            className={`p-1.5 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none flex items-center gap-1 text-[10px] font-bold ${
               controlMode === 'mobile'
                 ? 'bg-emerald-600/80 border-emerald-400/60 text-white shadow-emerald-950/40'
                 : 'bg-blue-600/80 border-blue-400/60 text-white shadow-blue-950/40'
@@ -404,27 +535,33 @@ export const HUD: React.FC<HUDProps> = ({
           >
             {controlMode === 'mobile' ? (
               <>
-                <Smartphone className="w-4 h-4 text-emerald-200" />
-                <span className="hidden sm:inline text-[10px]">CEL</span>
+                <Smartphone className="w-3.5 h-3.5 text-emerald-200" />
+                <span className="hidden sm:inline text-[9px]">CEL</span>
               </>
             ) : (
               <>
-                <Monitor className="w-4 h-4 text-cyan-200" />
-                <span className="hidden sm:inline text-[10px]">PC</span>
+                <Monitor className="w-3.5 h-3.5 text-cyan-200" />
+                <span className="hidden sm:inline text-[9px]">PC</span>
               </>
             )}
           </button>
 
-          {/* Clothing Button (sin función asignada por ahora) */}
+          {/* Clothing / Wardrobe Button - Customization & Shop */}
           <button
             id="hud-btn-outfits"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            aria-label="Ropa"
-            title="Ropa y Aspectos"
-            className="p-2 rounded-xl border border-purple-500/40 bg-purple-950/80 backdrop-blur-md text-purple-300 hover:text-purple-100 hover:border-purple-400 shadow-md transition active:scale-95 touch-none select-none"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onOpenWardrobe?.();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenWardrobe?.();
+            }}
+            aria-label="Armario y Ropa"
+            title="Armario: Cambiar ropa, sombreros, zapatos y género del personaje"
+            className="p-1.5 rounded-lg border border-purple-500/50 bg-purple-950/90 hover:bg-purple-900/90 hover:border-purple-400 backdrop-blur-md text-purple-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
           >
-            <Shirt className="w-4 h-4" />
+            <Shirt className="w-3.5 h-3.5" />
           </button>
 
           <button
@@ -438,13 +575,13 @@ export const HUD: React.FC<HUDProps> = ({
               onToggleMusic();
             }}
             aria-label="Música"
-            className={`p-2 rounded-xl border backdrop-blur-md shadow-md transition active:scale-95 touch-none select-none ${
+            className={`p-1.5 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none ${
               isMusicOn
                 ? 'bg-emerald-600/80 border-emerald-400/50 text-white'
                 : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-white'
             }`}
           >
-            {isMusicOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            {isMusicOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
           </button>
 
           <button
@@ -458,9 +595,9 @@ export const HUD: React.FC<HUDProps> = ({
               onOpenHelp();
             }}
             aria-label="Ayuda"
-            className="p-2 rounded-xl border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-md transition active:scale-95 touch-none select-none"
+            className="p-1.5 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
           >
-            <HelpCircle className="w-4 h-4" />
+            <HelpCircle className="w-3.5 h-3.5" />
           </button>
 
           <button
@@ -474,12 +611,24 @@ export const HUD: React.FC<HUDProps> = ({
               onOpenSettings();
             }}
             aria-label="Ajustes"
-            className="p-2 rounded-xl border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-md transition active:scale-95 touch-none select-none"
+            className="p-1.5 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-3.5 h-3.5" />
           </button>
         </div>
+
       </header>
+
+      {/* 1.05 ACTIVE WEATHER EFFECT ALERT PILL */}
+      {weatherBadge.alert && currentDimension !== 'mayan_boss' && (
+        <div 
+          id="hud-weather-alert-banner"
+          className="absolute top-16 left-1/2 -translate-x-1/2 pointer-events-none z-15 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/90 backdrop-blur-md border border-slate-700/80 text-[11px] font-semibold text-slate-200 shadow-xl animate-fade-in"
+        >
+          {weatherBadge.icon}
+          <span>{weatherBadge.alert}</span>
+        </div>
+      )}
 
       {/* 1.1 MAYAN BOSS HEALTH BAR & STATUS */}
       {currentDimension === 'mayan_boss' && bossState && (
@@ -600,7 +749,7 @@ export const HUD: React.FC<HUDProps> = ({
             className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-500 to-amber-500 text-white font-black text-sm shadow-2xl border-2 border-emerald-300 hover:scale-105 active:scale-95 transition touch-none select-none"
           >
             <span className="text-xl">🏛️</span>
-            <span>Entrar al Templo Maya ({templeCost} Monedas) [E]</span>
+            <span>Entrar al Templo Maya (¡Entrada Libre!) [E]</span>
           </button>
         </div>
       )}
@@ -614,10 +763,23 @@ export const HUD: React.FC<HUDProps> = ({
 
       {/* 5. TOAST NOTIFICATION */}
       {lastToast && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 pointer-events-none transition-all duration-300 animate-fade-in">
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 pointer-events-none transition-all duration-300 animate-fade-in z-30">
           <div className="bg-slate-900/90 text-amber-300 border border-amber-500/40 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold shadow-xl flex items-center gap-1.5">
             <span>✨</span>
             <span>{lastToast}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 5.1 VIP FLIGHT & NOCLIP ACTIVE BADGE */}
+      {isFlying && (
+        <div className="absolute top-28 left-1/2 -translate-x-1/2 pointer-events-none transition-all duration-300 z-30 animate-fade-in">
+          <div className="bg-slate-950/95 text-yellow-300 border-2 border-yellow-400 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-black shadow-2xl shadow-yellow-500/30 flex items-center gap-2 ring-2 ring-yellow-400/40">
+            <span className="text-base animate-bounce">🕊️</span>
+            <span>MODO VUELO & NOCLIP VIP</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-slate-950 font-black">
+              SUPER VELOCIDAD & ATRAVIESA MUROS
+            </span>
           </div>
         </div>
       )}
@@ -745,24 +907,98 @@ export const HUD: React.FC<HUDProps> = ({
             >
               <Zap className="w-5 h-5" />
             </button>
+
+            {/* VIP Fly Mode Quick Button (Mobile) */}
+            {isVip && (
+              <button
+                id="btn-action-fly-toggle"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  (e.currentTarget as HTMLElement)?.blur();
+                  onToggleFlight?.();
+                }}
+                className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none cursor-pointer ${
+                  isFlying
+                    ? 'bg-gradient-to-tr from-yellow-400 via-amber-400 to-yellow-300 border-yellow-200 text-slate-950 font-black ring-2 ring-yellow-400 shadow-yellow-500/50 animate-pulse'
+                    : 'bg-slate-900/80 border-sky-400 text-sky-300 hover:text-white'
+                }`}
+                title="Volar y Atravesar Estructuras"
+              >
+                <span className="text-xl">🕊️</span>
+              </button>
+            )}
           </div>
 
-          {/* Big Jump Button */}
-          <button
-            id="btn-action-jump"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onJump();
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onJump();
-            }}
-            className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 active:from-blue-700 active:to-indigo-600 border-2 border-blue-300/60 text-white font-extrabold text-sm tracking-wider shadow-2xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition touch-none select-none"
-          >
-            <span className="text-xl">⬆️</span>
-            <span>SALTAR</span>
-          </button>
+          {/* Big Jump or 3D Vertical Flight Buttons */}
+          {isFlying ? (
+            <div className="flex items-center gap-2">
+              <button
+                id="btn-action-fly-down"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onFlyVertical?.(-1);
+                }}
+                onPointerUp={(e) => {
+                  e.stopPropagation();
+                  onFlyVertical?.(0);
+                }}
+                onPointerLeave={(e) => {
+                  e.stopPropagation();
+                  onFlyVertical?.(0);
+                }}
+                onPointerCancel={(e) => {
+                  e.stopPropagation();
+                  onFlyVertical?.(0);
+                }}
+                className="w-16 h-20 rounded-3xl bg-gradient-to-tr from-slate-800 to-slate-900 active:from-slate-900 active:to-black border-2 border-slate-600/80 text-white font-black text-xs tracking-wider shadow-2xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition touch-none select-none"
+                title="Descender en Vuelo"
+              >
+                <span className="text-xl">⬇️</span>
+                <span>BAJAR</span>
+              </button>
+
+              <button
+                id="btn-action-fly-up"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onFlyVertical?.(1);
+                }}
+                onPointerUp={(e) => {
+                  e.stopPropagation();
+                  onFlyVertical?.(0);
+                }}
+                onPointerLeave={(e) => {
+                  e.stopPropagation();
+                  onFlyVertical?.(0);
+                }}
+                onPointerCancel={(e) => {
+                  e.stopPropagation();
+                  onFlyVertical?.(0);
+                }}
+                className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-yellow-400 via-amber-400 to-yellow-500 active:from-yellow-500 active:to-amber-600 border-2 border-yellow-200 text-slate-950 font-black text-sm tracking-wider shadow-2xl shadow-yellow-500/50 flex flex-col items-center justify-center gap-0.5 active:scale-95 transition touch-none select-none animate-pulse"
+                title="Ascender en Vuelo"
+              >
+                <span className="text-xl">⬆️</span>
+                <span>SUBIR</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              id="btn-action-jump"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onJump();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onJump();
+              }}
+              className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 active:from-blue-700 active:to-indigo-600 border-2 border-blue-300/60 text-white font-extrabold text-sm tracking-wider shadow-2xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition touch-none select-none"
+            >
+              <span className="text-xl">⬆️</span>
+              <span>SALTAR</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -772,6 +1008,13 @@ export const HUD: React.FC<HUDProps> = ({
           id="pc-controls-hint-bar"
           className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2.5 text-[11px] text-slate-200/90 bg-slate-950/85 border border-slate-700/80 backdrop-blur-md px-4 py-1.5 rounded-full shadow-xl pointer-events-none z-20 max-w-[95vw] overflow-x-auto whitespace-nowrap animate-fade-in"
         >
+          {isVip && (
+            <>
+              <span className="text-yellow-300 font-black">🕊️ G</span>
+              <span className="text-yellow-200">Volar/Noclip</span>
+              <span className="text-slate-500">•</span>
+            </>
+          )}
           <span className="text-amber-300 font-semibold">🖱️ Clic Derecho (mantener)</span> Girar Cámara
           <span className="text-slate-500">•</span>
           <span className="text-rose-300 font-semibold">🖱️ Clic Izq / R</span> Atacar
