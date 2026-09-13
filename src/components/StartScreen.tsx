@@ -20,7 +20,9 @@ import {
   User as UserIcon,
   CloudCheck,
   Crown,
-  Shirt
+  Shirt,
+  Maximize,
+  Minimize
 } from 'lucide-react';
 import { GameSettings, ControlDevice } from '../types';
 import { User } from 'firebase/auth';
@@ -41,6 +43,8 @@ interface StartScreenProps {
   currentUser?: User | null;
   onSignInGoogle?: () => void;
   onSignOut?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export const StartScreen: React.FC<StartScreenProps> = ({
@@ -59,6 +63,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   currentUser,
   onSignInGoogle,
   onSignOut,
+  isFullscreen = false,
+  onToggleFullscreen,
 }) => {
   return (
     <div 
@@ -87,37 +93,30 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             </div>
           )}
 
-          {/* Firebase User Auth Status & VIP Crown */}
+          {/* Firebase User Auth Status */}
           {currentUser ? (
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs border ${
-              isVip
-                ? 'bg-amber-950/80 border-amber-400 text-amber-200 shadow-md shadow-amber-400/20'
-                : 'bg-slate-800/80 border-slate-700 text-slate-200'
-            }`}>
-              {isVip ? (
-                <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400 animate-bounce" />
-              ) : currentUser.photoURL ? (
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs border bg-slate-800/80 border-slate-700 text-slate-200 shadow-sm">
+              {currentUser.photoURL ? (
                 <img
                   src={currentUser.photoURL}
                   alt=""
                   referrerPolicy="no-referrer"
-                  className="w-4 h-4 rounded-full border border-amber-400/60"
+                  className="w-4 h-4 rounded-full border border-slate-500"
                 />
               ) : (
-                <UserIcon className="w-3.5 h-3.5 text-amber-400" />
+                <UserIcon className="w-3.5 h-3.5 text-slate-400" />
               )}
-              <span className={`font-semibold max-w-[100px] sm:max-w-[140px] truncate ${isVip ? 'text-amber-300 font-bold' : ''}`}>
-                {isVip ? '👑 Santiago VIP' : currentUser.displayName || currentUser.email}
+              <span 
+                onClick={() => {
+                  if (isVip && onOpenVipProfile) {
+                    onOpenVipProfile();
+                  }
+                }}
+                className={`font-semibold max-w-[100px] sm:max-w-[140px] truncate ${isVip ? 'cursor-pointer hover:text-white' : ''}`}
+                title={currentUser.displayName || currentUser.email || ''}
+              >
+                {currentUser.displayName || currentUser.email}
               </span>
-              {isVip && onOpenVipProfile && (
-                <button
-                  onClick={onOpenVipProfile}
-                  title="Abrir Panel VIP Dios"
-                  className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] hover:bg-amber-300 transition cursor-pointer"
-                >
-                  MODO DIOS
-                </button>
-              )}
               <button
                 onClick={onSignOut}
                 title="Cerrar sesión"
@@ -218,6 +217,27 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             </span>
           </button>
         </div>
+
+        {/* Fullscreen Button to Hide Chrome URL on Mobile */}
+        {onToggleFullscreen && (
+          <button
+            id="btn-start-fullscreen"
+            onClick={onToggleFullscreen}
+            className="flex items-center gap-2 px-4 py-1.5 mb-3 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/50 hover:border-cyan-400 text-cyan-300 hover:text-white text-xs font-bold shadow-md shadow-black/40 transition active:scale-95 cursor-pointer select-none"
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize className="w-3.5 h-3.5 text-emerald-400" />
+                <span>✅ Pantalla Completa Activa (Barra URL oculta)</span>
+              </>
+            ) : (
+              <>
+                <Maximize className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                <span>⛶ Activar Pantalla Completa (Ocultar barra de URL)</span>
+              </>
+            )}
+          </button>
+        )}
 
         {/* Keyboard hint */}
         <p className="text-[11px] text-slate-400 mb-5 font-medium">

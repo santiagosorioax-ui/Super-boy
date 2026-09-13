@@ -9,6 +9,8 @@ interface SettingsModalProps {
   onUpdateSettings: (newSettings: Partial<GameSettings>) => void;
   onResetGame: () => void;
   onReturnToTitle?: () => void;
+  isVip?: boolean;
+  onOpenCreatorConsole?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -18,6 +20,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateSettings,
   onResetGame,
   onReturnToTitle,
+  isVip = false,
+  onOpenCreatorConsole,
 }) => {
   if (!isOpen) return null;
 
@@ -380,6 +384,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <RotateCcw className="w-4 h-4" />
               Reiniciar Monedas y Partida
             </button>
+
+            {isVip && onOpenCreatorConsole && (
+              <button
+                type="button"
+                id="settings-btn-creator"
+                onClick={() => {
+                  onClose();
+                  onOpenCreatorConsole();
+                }}
+                className="w-full py-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 text-slate-400 hover:text-slate-200 font-medium text-[11px] flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer mt-2"
+              >
+                <Sliders className="w-3.5 h-3.5 text-slate-400" />
+                <span>Herramientas de Desarrollador</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

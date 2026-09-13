@@ -17,7 +17,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   target,
   isWorldReady = true,
   onFinish,
-  minDurationMs = 15000,
+  minDurationMs = 1800,
 }) => {
   const currentTarget: TransitionTarget = target ?? 'game_start';
 
@@ -46,18 +46,28 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     }
   }, [isOpen]);
 
-  // Rotate images & tips every 5 seconds as requested
+  // Allow instant skip with keyboard (Space, Enter, WASD, Esc)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      onFinishRef.current();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  // Rotate images & tips
   useEffect(() => {
     if (!isOpen || slides.length <= 1) return;
 
     const slideTimer = setInterval(() => {
       setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
-    }, 5000);
+    }, 4000);
 
     return () => clearInterval(slideTimer);
   }, [isOpen, slides.length]);
 
-  // Robust progress timer: connects to world readiness and never resets on parent re-renders
+  // Robust progress timer: connects to world readiness and finishes smoothly
   useEffect(() => {
     if (!isOpen) {
       setProgress(0);
@@ -75,21 +85,21 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
       let nextProgress: number;
 
       if (worldReady) {
-        // When world is ready, progress advances steadily to 100% over the full duration
-        nextProgress = Math.min(100, Math.round(5 + timeRatio * 95));
+        // When world is ready, progress advances steadily to 100%
+        nextProgress = Math.min(100, Math.round(10 + timeRatio * 90));
       } else {
         // If world is still initializing, cap at 85% until world reports ready
-        nextProgress = Math.min(85, Math.round(5 + timeRatio * 80));
+        nextProgress = Math.min(85, Math.round(10 + timeRatio * 75));
       }
 
-      // Hard timeout fallback: after 16 seconds, force 100%
-      if (elapsed >= 16000) {
+      // Hard timeout fallback: after 4 seconds, force 100%
+      if (elapsed >= 4000) {
         nextProgress = 100;
       }
 
       setProgress(nextProgress);
 
-      if (elapsed > 5000) {
+      if (elapsed > 400 || worldReady) {
         setCanSkip(true);
       }
 
@@ -98,9 +108,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         clearInterval(interval);
         setTimeout(() => {
           onFinishRef.current();
-        }, 220);
+        }, 150);
       }
-    }, 50);
+    }, 40);
 
     return () => clearInterval(interval);
   }, [isOpen, minDurationMs]);
@@ -110,9 +120,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const currentSlide = slides[currentSlideIndex] || slides[0];
 
   const handleManualDismiss = () => {
-    if (canSkip || progress >= 85) {
-      onFinishRef.current();
-    }
+    onFinishRef.current();
   };
 
   return (

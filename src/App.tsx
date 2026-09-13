@@ -31,24 +31,25 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const worldRef = useRef<GameWorld | null>(null);
 
-  // Firebase Auth user state: Defaults to Santiago VIP (santiagosorioax@gmail.com)
+  // Firebase Auth user state
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isVipModalOpen, setIsVipModalOpen] = useState(false);
-  // Default to VIP for Santiago so owner has full access in preview, and protect if non-VIP account logs in
-  const isVip = !currentUser || currentUser.email?.toLowerCase() === VIP_GMAIL.toLowerCase();
+  // STRICT VIP CHECK: ONLY santiagosorioax@gmail.com is VIP!
+  // Any non-logged-in guest or any account that is not santiagosorioax@gmail.com is strictly mortal.
+  const isVip = Boolean(currentUser && currentUser.email?.toLowerCase() === VIP_GMAIL.toLowerCase());
 
   const [vipProfile, setVipProfile] = useState<UserProfile>({
-    email: VIP_GMAIL,
-    username: 'Santiago VIP',
-    role: 'admin_unlimited',
-    isUnlimited: true,
-    infiniteCoins: true,
-    isGodMode: true,
-    superSpeed: true,
-    superJump: true,
-    superMagnet: true,
-    freeTemplePass: true,
+    email: '',
+    username: 'Jugador',
+    role: 'user',
+    isUnlimited: false,
+    infiniteCoins: false,
+    isGodMode: false,
+    superSpeed: false,
+    superJump: false,
+    superMagnet: false,
+    freeTemplePass: false,
     flyMode: false,
   });
 
@@ -90,6 +91,33 @@ export default function App() {
   const [radar, setRadar] = useState<{ angleDeg: number; distance: number } | null>(null);
   const [lastToast, setLastToast] = useState<string | null>(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Monitor browser fullscreen change events to update state
+  useEffect(() => {
+    const handleFsChange = () => {
+      const doc = document as any;
+      const isFs = Boolean(
+        doc.fullscreenElement ||
+        doc.webkitFullscreenElement ||
+        doc.mozFullScreenElement ||
+        doc.msFullscreenElement
+      );
+      setIsFullscreen(isFs);
+    };
+
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    document.addEventListener('mozfullscreenchange', handleFsChange);
+    document.addEventListener('MSFullscreenChange', handleFsChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+      document.removeEventListener('mozfullscreenchange', handleFsChange);
+      document.removeEventListener('MSFullscreenChange', handleFsChange);
+    };
+  }, []);
 
   // Shop & Inventory State - Standard Fair Progression
   const [isShopOpen, setIsShopOpen] = useState(false);
@@ -97,6 +125,7 @@ export default function App() {
   const [isMultiplierShopOpen, setIsMultiplierShopOpen] = useState(false);
   const [isNearMultiplierShop, setIsNearMultiplierShop] = useState(false);
   const [isNearTemple, setIsNearTemple] = useState(false);
+  const [isNearCampfire, setIsNearCampfire] = useState(false);
   const [templeCost, setTempleCost] = useState(500);
   const [bossState, setBossState] = useState<MayanBossState | null>(null);
   const [weatherState, setWeatherState] = useState<WeatherState | null>(null);
@@ -178,11 +207,53 @@ export default function App() {
     }, 2800);
   }, []);
 
-  // Apply VIP Perks for Santiago (santiagosorioax@gmail.com)
+  // Fullscreen toggle handler: hides the mobile Chrome browser URL bar and tabs
+  const handleToggleFullscreen = useCallback(() => {
+    const doc = document as any;
+    const isFs = Boolean(
+      doc.fullscreenElement ||
+      doc.webkitFullscreenElement ||
+      doc.mozFullScreenElement ||
+      doc.msFullscreenElement
+    );
+
+    if (isFs) {
+      if (doc.exitFullscreen) {
+        doc.exitFullscreen().catch(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+      }
+    } else {
+      const elem = document.documentElement as any;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      }
+      showToast('🖥️ Pantalla Completa: Barra de URL oculta');
+    }
+  }, [showToast]);
+
+  // Apply Perks for Santiago (santiagosorioax@gmail.com)
   const applyVipPerks = useCallback(() => {
+    setVipProfile({
+      email: VIP_GMAIL,
+      username: 'Santiago',
+      role: 'admin_unlimited',
+      isUnlimited: true,
+      infiniteCoins: true,
+      isGodMode: true,
+      superSpeed: true,
+      superJump: true,
+      superMagnet: true,
+      freeTemplePass: true,
+      flyMode: false,
+    });
     setInventory((prev) => ({
       ...prev,
       coins: 999999999,
+      health: 5,
+      maxHealth: 5,
       ownedSwordIds: ['wood_sword', 'neon_katana', 'fire_greatsword', 'god_blade'],
       equippedSwordId: 'god_blade',
       playerMultiplier: 1000,
@@ -200,14 +271,14 @@ export default function App() {
       });
       worldRef.current.setEquippedSword('god_blade');
     }
-    showToast('👑 ¡Bienvenido Santiago! Modo VIP Activado (999M Monedas & Sin Límites)');
+    showToast('✨ Bienvenido Santiago');
   }, [showToast]);
 
   // Listen to Firebase Auth State Changes & Load User Save Data
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
-      const isUserVip = user?.email?.toLowerCase() === VIP_GMAIL.toLowerCase();
+      const isUserVip = Boolean(user && user.email?.toLowerCase() === VIP_GMAIL.toLowerCase());
       if (worldRef.current) {
         worldRef.current.setVip(isUserVip);
       }
@@ -217,20 +288,66 @@ export default function App() {
           return;
         }
 
+        // NON-VIP USER: Strip all VIP, god mode, and unlimited powers immediately
+        if (worldRef.current) {
+          worldRef.current.setVip(false);
+          worldRef.current.setUnlimitedPowers({
+            isGodMode: false,
+            superSpeed: false,
+            superJump: false,
+            superMagnet: false,
+            freeTemplePass: false,
+            flyMode: false,
+          });
+        }
+        setVipProfile({
+          email: user.email || '',
+          username: user.displayName || 'Jugador',
+          role: 'user',
+          isUnlimited: false,
+          infiniteCoins: false,
+          isGodMode: false,
+          superSpeed: false,
+          superJump: false,
+          superMagnet: false,
+          freeTemplePass: false,
+          flyMode: false,
+        });
+
         try {
           const saved = await loadUserProgress(user.uid);
           if (saved) {
             setBestScore(saved.bestScore || 0);
-            setInventory((prev) => ({
-              ...prev,
-              coins: saved.coins ?? prev.coins,
-              equippedSwordId: saved.equippedSwordId ?? prev.equippedSwordId,
-              ownedSwordIds: saved.ownedSwordIds?.length ? saved.ownedSwordIds : prev.ownedSwordIds,
-              playerMultiplier: saved.playerMultiplier ?? prev.playerMultiplier,
-              unlockedMultipliers: saved.unlockedMultipliers?.length ? saved.unlockedMultipliers : prev.unlockedMultipliers,
-            }));
-            if (saved.equippedSwordId && worldRef.current) {
-              worldRef.current.setEquippedSword(saved.equippedSwordId);
+            // Protect against corrupted/previous test saves:
+            // Non-VIP players cannot have 999M coins, god_blade, or 1000x multiplier
+            const cleanCoins = (typeof saved.coins === 'number' && saved.coins < 900000000) ? Math.max(0, saved.coins) : 0;
+            const cleanSwords = (saved.ownedSwordIds || []).filter((id) => id !== 'god_blade');
+            const cleanEquipped = saved.equippedSwordId === 'god_blade' ? null : saved.equippedSwordId;
+            const cleanMultiplier = (saved.playerMultiplier && saved.playerMultiplier <= 100) ? saved.playerMultiplier : 1;
+            const cleanUnlocked = (saved.unlockedMultipliers || [1]).filter((m) => m <= 100);
+
+            setInventory({
+              coins: cleanCoins,
+              health: 5,
+              maxHealth: 5,
+              equippedSwordId: cleanEquipped ?? null,
+              ownedSwordIds: cleanSwords,
+              playerMultiplier: cleanMultiplier,
+              unlockedMultipliers: cleanUnlocked.length ? cleanUnlocked : [1],
+              isGodMode: false,
+              activeBuffs: {
+                speedTimeRemaining: 0,
+                jumpTimeRemaining: 0,
+                magnetTimeRemaining: 0,
+                speedMultiplier: 1.0,
+                jumpMultiplier: 1.0,
+                magnetRadius: 10.0,
+              },
+            });
+            if (cleanEquipped && worldRef.current) {
+              worldRef.current.setEquippedSword(cleanEquipped);
+            } else if (worldRef.current) {
+              worldRef.current.setEquippedSword(null);
             }
             if (saved.zombiesDefeated) {
               setZombiesDefeated(saved.zombiesDefeated);
@@ -241,11 +358,79 @@ export default function App() {
                 worldRef.current.setCustomization(saved.customization);
               }
             }
-            showToast(`☁️ ¡Progreso cargado de Firebase (${saved.coins} monedas)!`);
+            showToast(`☁️ Sesión de ${user.displayName?.split(' ')[0] || user.email} iniciada (${cleanCoins} monedas)`);
+          } else {
+            // New mortal player
+            setInventory({
+              coins: 0,
+              health: 5,
+              maxHealth: 5,
+              ownedSwordIds: [],
+              equippedSwordId: null,
+              playerMultiplier: 1,
+              unlockedMultipliers: [1],
+              isGodMode: false,
+              activeBuffs: {
+                speedTimeRemaining: 0,
+                jumpTimeRemaining: 0,
+                magnetTimeRemaining: 0,
+                speedMultiplier: 1.0,
+                jumpMultiplier: 1.0,
+                magnetRadius: 10.0,
+              },
+            });
+            if (worldRef.current) {
+              worldRef.current.setEquippedSword(null);
+            }
+            showToast(`☁️ Bienvenido ${user.displayName?.split(' ')[0] || 'Jugador'} a Super Boy`);
           }
         } catch (err) {
           console.error('Error loading save data:', err);
         }
+      } else {
+        // Logged out / Guest: Reset to fresh mortal state
+        if (worldRef.current) {
+          worldRef.current.setVip(false);
+          worldRef.current.setUnlimitedPowers({
+            isGodMode: false,
+            superSpeed: false,
+            superJump: false,
+            superMagnet: false,
+            freeTemplePass: false,
+            flyMode: false,
+          });
+        }
+        setVipProfile({
+          email: '',
+          username: 'Jugador',
+          role: 'user',
+          isUnlimited: false,
+          infiniteCoins: false,
+          isGodMode: false,
+          superSpeed: false,
+          superJump: false,
+          superMagnet: false,
+          freeTemplePass: false,
+          flyMode: false,
+        });
+        setInventory({
+          coins: 0,
+          health: 5,
+          maxHealth: 5,
+          ownedSwordIds: [],
+          equippedSwordId: null,
+          playerMultiplier: 1,
+          unlockedMultipliers: [1],
+          isGodMode: false,
+          activeBuffs: {
+            speedTimeRemaining: 0,
+            jumpTimeRemaining: 0,
+            magnetTimeRemaining: 0,
+            speedMultiplier: 1.0,
+            jumpMultiplier: 1.0,
+            magnetRadius: 10.0,
+          },
+        });
       }
     });
 
@@ -357,6 +542,9 @@ export default function App() {
       onNearTemple: (near: boolean, cost: number) => {
         setIsNearTemple(near);
         setTempleCost(cost);
+      },
+      onNearCampfire: (near: boolean) => {
+        setIsNearCampfire(near);
       },
       onSpendCoins: (amount: number) => {
         if (inventoryRef.current.coins >= amount) {
@@ -512,6 +700,16 @@ export default function App() {
       soundEngine.startMusic();
     }
 
+    // Try to trigger fullscreen on mobile to hide Chrome URL bar
+    if (activeMode === 'mobile') {
+      const elem = document.documentElement as any;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      }
+    }
+
     setLoadingState({
       isOpen: true,
       target: 'game_start',
@@ -522,10 +720,12 @@ export default function App() {
           : 'Preparando teclado, ratón y mundo...',
       onComplete: () => {
         setIsPlaying(true);
+        window.focus();
+        containerRef.current?.focus();
         showToast(
           activeMode === 'mobile'
             ? '📱 Modo Celular Iniciado: Botones y Joystick Táctiles Activos'
-            : '💻 Modo PC Iniciado: Teclado y Ratón Activos'
+            : '💻 Modo PC Iniciado: ¡Usa WASD o Flechas para moverte!'
         );
       },
     });
@@ -539,24 +739,45 @@ export default function App() {
     showToast(
       nextMode === 'mobile'
         ? '📱 Modo Celular Activado (Botones Táctiles en Pantalla)'
-        : '💻 Modo PC Activado (Teclado y Ratón)'
+        : '💻 Modo PC Activado (Teclado y Ratón: WASD)'
     );
   }, [controlMode, showToast]);
 
-  // Keyboard shortcut (Enter / Space) to start game while in Start Screen
+  // Keyboard shortcut (Enter / Space / WASD / Flechas) to start game while in Start Screen
   useEffect(() => {
     if (isPlaying) return;
     const onStartKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if a modal is open
-      if (isSettingsOpen || isHelpOpen || isShopOpen || isVictoryOpen) return;
-      if (e.code === 'Enter' || e.code === 'Space') {
-        e.preventDefault();
+      // Don't trigger if any modal is open
+      if (isSettingsOpen || isHelpOpen || isShopOpen || isVictoryOpen || isWardrobeOpen) return;
+      const startCodes = [
+        'Enter', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyZ', 'KeyQ',
+        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'
+      ];
+      if (
+        startCodes.includes(e.code) ||
+        e.key === 'Enter' ||
+        e.key === ' ' ||
+        ['w', 'a', 's', 'd', 'z', 'q', 'W', 'A', 'S', 'D', 'Z', 'Q'].includes(e.key)
+      ) {
         handlePlayGame();
       }
     };
     window.addEventListener('keydown', onStartKeyDown);
     return () => window.removeEventListener('keydown', onStartKeyDown);
-  }, [isPlaying, isSettingsOpen, isHelpOpen, isShopOpen, isVictoryOpen, handlePlayGame]);
+  }, [isPlaying, isSettingsOpen, isHelpOpen, isShopOpen, isVictoryOpen, isWardrobeOpen, handlePlayGame]);
+
+  // Secret Creator Hotkey (F2 or K) for Santiago
+  useEffect(() => {
+    const handleCreatorKeyDown = (e: KeyboardEvent) => {
+      if (!isVip) return;
+      if (e.code === 'F2' || (e.code === 'KeyK' && !['input', 'textarea'].includes((e.target as HTMLElement)?.tagName?.toLowerCase()))) {
+        e.preventDefault();
+        setIsVipModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleCreatorKeyDown);
+    return () => window.removeEventListener('keydown', handleCreatorKeyDown);
+  }, [isVip]);
 
   // Handle Music Toggle
   const handleToggleMusic = () => {
@@ -592,12 +813,9 @@ export default function App() {
     }
   };
 
-  // Handle VIP Flight & Noclip Mode
+  // Handle Flight Mode
   const handleToggleFlight = () => {
-    if (!isVip) {
-      showToast('🔒 El modo vuelo y noclip es exclusivo para Santiago VIP (santiagosorioax@gmail.com)');
-      return;
-    }
+    if (!isVip) return;
     if (worldRef.current) {
       worldRef.current.toggleFlight();
     }
@@ -729,8 +947,9 @@ export default function App() {
     showToast(`⚡ Multiplicador ${mult}x activado`);
   };
 
-  // VIP Action Handlers for Santiago (santiagosorioax@gmail.com)
+  // Action Handlers for Santiago (santiagosorioax@gmail.com)
   const handleUpdateVipProfile = (updated: UserProfile) => {
+    if (!isVip) return;
     setVipProfile(updated);
     if (worldRef.current) {
       worldRef.current.setUnlimitedPowers({
@@ -742,19 +961,21 @@ export default function App() {
         flyMode: updated.flyMode,
       });
     }
-    showToast('✨ Superpoderes VIP actualizados');
+    showToast('✨ Parámetros actualizados');
   };
 
   const handleRefillInfiniteCoins = () => {
+    if (!isVip) return;
     setInventory((prev) => ({
       ...prev,
       coins: 999999999,
     }));
     soundEngine.playCoinSound();
-    showToast('🪙 +999,999,999 Monedas Infinitas asignadas');
+    showToast('🪙 +999,999,999 Monedas');
   };
 
   const handleUnlockAllSwords = () => {
+    if (!isVip) return;
     setInventory((prev) => ({
       ...prev,
       ownedSwordIds: ['wood_sword', 'neon_katana', 'fire_greatsword', 'god_blade'],
@@ -764,10 +985,11 @@ export default function App() {
       worldRef.current.setEquippedSword('god_blade');
     }
     soundEngine.playEquipSound();
-    showToast('🗡️ ¡Todas las espadas desbloqueadas y Hoja de Dios equipada!');
+    showToast('🗡️ ¡Espada Divina equipada!');
   };
 
   const handleUnlockAllMultipliers = () => {
+    if (!isVip) return;
     setInventory((prev) => ({
       ...prev,
       unlockedMultipliers: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000],
@@ -778,6 +1000,7 @@ export default function App() {
   };
 
   const handleTeleportTo = (dest: 'spawn' | 'shop' | 'multiplier_shop' | 'candy_portal' | 'mayan_temple' | 'boss_arena') => {
+    if (!isVip) return;
     if (worldRef.current) {
       worldRef.current.teleportTo(dest);
       setIsVipModalOpen(false);
@@ -964,7 +1187,16 @@ export default function App() {
       <div 
         ref={containerRef} 
         id="three-canvas-container" 
-        className="w-full h-full cursor-crosshair touch-none"
+        tabIndex={0}
+        onClick={() => {
+          containerRef.current?.focus();
+          window.focus();
+        }}
+        onPointerDown={() => {
+          containerRef.current?.focus();
+          window.focus();
+        }}
+        className="w-full h-full cursor-crosshair touch-none outline-none focus:outline-none"
       />
 
       {/* Title / Start Screen for SUPER BOY */}
@@ -985,6 +1217,8 @@ export default function App() {
           onSignInGoogle={handleSignInGoogle}
           onSignOut={handleSignOut}
           onOpenWardrobe={() => setIsWardrobeOpen(true)}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={handleToggleFullscreen}
         />
       )}
 
@@ -1010,6 +1244,7 @@ export default function App() {
           isNearShop={isNearShop}
           isNearMultiplierShop={isNearMultiplierShop}
           isNearTemple={isNearTemple}
+          isNearCampfire={isNearCampfire}
           templeCost={templeCost}
           onEnterTemple={() => worldRef.current?.tryEnterMayanTemple()}
           bossState={bossState}
@@ -1046,6 +1281,8 @@ export default function App() {
           onLookTouchMove={handleLookTouchMove}
           onLookTouchEnd={handleLookTouchEnd}
           lastToast={lastToast}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={handleToggleFullscreen}
         />
       )}
 
@@ -1108,6 +1345,8 @@ export default function App() {
         onUpdateSettings={handleUpdateSettings}
         onResetGame={handleResetGame}
         onReturnToTitle={() => setIsPlaying(false)}
+        isVip={isVip}
+        onOpenCreatorConsole={() => setIsVipModalOpen(true)}
       />
 
       {/* Victory Modal */}

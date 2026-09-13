@@ -47,7 +47,7 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
   onUnlockAllMultipliers,
   onTeleportTo,
 }) => {
-  if (!isOpen) return null;
+  if (!isOpen || user.email.toLowerCase() !== 'santiagosorioax@gmail.com') return null;
 
   const togglePower = (key: keyof Pick<UserProfile, 'isGodMode' | 'superSpeed' | 'superJump' | 'superMagnet' | 'freeTemplePass' | 'infiniteCoins' | 'flyMode'>) => {
     onUpdateUser({
@@ -62,17 +62,17 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
         className="relative w-full max-w-xl rounded-3xl bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-2 border-amber-500/60 shadow-2xl shadow-amber-500/20 overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header with VIP Crown */}
+        {/* Header with Creator Console */}
         <div className="relative p-5 bg-gradient-to-r from-amber-600/40 via-yellow-500/30 to-amber-600/40 border-b border-amber-500/40 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-yellow-300 flex items-center justify-center shadow-lg shadow-amber-400/40 animate-pulse">
-              <Crown className="w-7 h-7 text-slate-950 fill-slate-950" />
+              <Sparkles className="w-7 h-7 text-slate-950" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-black text-white tracking-wide">Panel VIP Santiago</h2>
+                <h2 className="text-xl font-black text-white tracking-wide">Consola de Creador</h2>
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 shadow">
-                  UNLIMITED
+                  CREATOR
                 </span>
               </div>
               <p className="text-xs text-amber-300/90 font-medium">santiagosorioax@gmail.com</p>
@@ -89,7 +89,7 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
-          {/* Quick VIP Action Buttons */}
+          {/* Quick Action Buttons */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               onClick={onRefillInfiniteCoins}
@@ -138,7 +138,7 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
           <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
               <Shield className="w-4 h-4" />
-              Superpoderes Activos de Administrador VIP
+              Parámetros y Habilidades del Creador
             </h3>
 
             <div className="space-y-2">
@@ -151,13 +151,13 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
                   <div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-black text-yellow-300 block">Modo Vuelo & Noclip</span>
-                      <span className="text-[9px] font-black px-1.5 py-0.5 bg-yellow-400 text-slate-950 rounded">SUPER VIP [G]</span>
+                      <span className="text-[9px] font-black px-1.5 py-0.5 bg-yellow-400 text-slate-950 rounded">MODO LIBRE [G]</span>
                     </div>
                     <span className="text-[10px] text-slate-300">Vuela en 3D, super velocidad y atraviesa estructuras sólidas</span>
                   </div>
                 </div>
                 <button
-                  id="vip-modal-toggle-fly"
+                  id="creator-modal-toggle-fly"
                   onClick={() => togglePower('flyMode')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer ${
                     user.flyMode
@@ -286,12 +286,12 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Weather Controller Section for VIP Santiago */}
+          {/* Weather Controller Section */}
           <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
                 <CloudRain className="w-4 h-4" />
-                Control de Clima del Mundo (VIP)
+                Control de Clima del Mundo
               </h3>
               {currentWeather && (
                 <span className="text-[10px] uppercase font-bold text-sky-300 px-2 py-0.5 rounded-full bg-sky-950/80 border border-sky-500/40">
@@ -409,7 +409,7 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
         <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
           <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Perfil VIP Santiago sincronizado con Firebase</span>
+            <span>Consola de Creador sincronizada con Firebase</span>
           </div>
 
           <button

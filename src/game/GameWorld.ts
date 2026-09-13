@@ -579,7 +579,7 @@ export class GameWorld {
       onBossStateUpdate: (state) => this.callbacks.onBossStateUpdate?.(state),
       onAddCoins: (amount) => this.callbacks.onAddCoins?.(amount),
       onPlayerHurt: (msg) => {
-        if (this.isPlayerDead || this.playerInvincibleTimer > 0 || this.isGodMode) return;
+        if (this.isPlayerDead || this.playerInvincibleTimer > 0 || (this.isVip && this.isGodMode)) return;
         this.playerInvincibleTimer = 0.9;
         this.playerHealth = Math.max(0, this.playerHealth - 1);
         this.callbacks.onPlayerHealthUpdate?.(this.playerHealth, this.maxPlayerHealth);
@@ -1589,6 +1589,24 @@ export class GameWorld {
       { x: -12, z: -85, radius: 16 },
       { x: -80, z: 30, radius: 16 },
       { x: -10, z: 28, radius: 14 },
+      // Mayan Pyramid Zone
+      { x: 0, z: -68, radius: 24 },
+      // Valley Structures (Campfires, Giant Trees, Towers, Arches, Bridges)
+      { x: 4.5, z: 6, radius: 5 },
+      { x: 65, z: 35, radius: 8 },
+      { x: -55, z: -35, radius: 8 },
+      { x: 25, z: -105, radius: 8 },
+      { x: -25, z: 125, radius: 8 },
+      { x: -70, z: 75, radius: 14 },
+      { x: 85, z: -70, radius: 14 },
+      { x: 95, z: 60, radius: 11 },
+      { x: -110, z: -20, radius: 11 },
+      { x: 40, z: 135, radius: 11 },
+      { x: 35, z: -50, radius: 12 },
+      { x: -45, z: 45, radius: 12 },
+      { x: 50, z: 10, radius: 10 },
+      { x: -80, z: -60, radius: 10 },
+      { x: -10, z: 100, radius: 10 },
     ];
 
     const isPositionOccupied = (x: number, z: number, minDistance: number) => {
@@ -1600,12 +1618,12 @@ export class GameWorld {
       return false;
     };
 
-    // 1. Procedural Trees across the world with strict spacing to prevent merged trunks
-    const targetTrees = 100;
+    // 1. Procedural Trees across the expanded world with strict spacing
+    const targetTrees = 160;
     let placedTrees = 0;
-    for (let i = 0; i < 280 && placedTrees < targetTrees; i++) {
+    for (let i = 0; i < 460 && placedTrees < targetTrees; i++) {
       const angle = (i * 1.37) % (Math.PI * 2);
-      const dist = 14 + ((i * 37) % 122);
+      const dist = 14 + ((i * 41) % 195);
       const x = Math.cos(angle) * dist;
       const z = Math.sin(angle) * dist;
 
@@ -1666,11 +1684,11 @@ export class GameWorld {
     }
 
     // 2. Rocks & Boulders firmly grounded with anti-fusion spacing
-    const targetRocks = 45;
+    const targetRocks = 70;
     let placedRocks = 0;
-    for (let i = 0; i < 220 && placedRocks < targetRocks; i++) {
+    for (let i = 0; i < 340 && placedRocks < targetRocks; i++) {
       const angle = (i * 2.19) % (Math.PI * 2);
-      const dist = 12 + ((i * 43) % 125);
+      const dist = 12 + ((i * 53) % 195);
       const x = Math.cos(angle) * dist;
       const z = Math.sin(angle) * dist;
 
@@ -2003,8 +2021,15 @@ export class GameWorld {
 
   // --- CONTROLS & EVENT LISTENERS ---
   private setupEventListeners() {
+    // Focusable canvas element
+    this.renderer.domElement.tabIndex = 0;
+    this.renderer.domElement.style.outline = 'none';
+
+    // Global and window-level keyboard listeners
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
+    document.addEventListener('keydown', this.onKeyDown);
+    document.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('resize', this.onResize);
 
     // Mouse & Pointer listeners for Camera rotation & interaction
@@ -2015,10 +2040,27 @@ export class GameWorld {
     window.addEventListener('contextmenu', this.onContextMenu);
     window.addEventListener('blur', this.onWindowBlur);
 
+    // Ensure canvas and window regain focus on any user interaction
+    const ensureFocus = () => {
+      this.renderer.domElement.focus();
+      window.focus();
+    };
+
+    this.renderer.domElement.addEventListener('pointerdown', ensureFocus);
     this.renderer.domElement.addEventListener('click', () => {
-      // If player clicks canvas, optionally lock pointer for pure FPS or continue with right-click drag
+      ensureFocus();
+      // If player clicks canvas in first person, safely request pointer lock
       if (document.pointerLockElement !== this.renderer.domElement && this.viewMode === 'first_person') {
-        this.renderer.domElement.requestPointerLock();
+        try {
+          const promise = this.renderer.domElement.requestPointerLock();
+          if (promise && typeof (promise as any).catch === 'function') {
+            (promise as any).catch(() => {
+              // Ignore pointer lock rejections in iframe
+            });
+          }
+        } catch {
+          // Ignore
+        }
       }
     });
   }
@@ -2068,12 +2110,21 @@ export class GameWorld {
   };
 
   private onKeyDown = (e: KeyboardEvent) => {
-    this.keyState[e.code] = true;
-    if (e.code === 'Space') {
+    if (e.code) this.keyState[e.code] = true;
+    if (e.key) {
+      this.keyState[e.key] = true;
+      this.keyState[e.key.toLowerCase()] = true;
+      this.keyState[e.key.toUpperCase()] = true;
+    }
+
+    // Jump (Space or ' ')
+    if (e.code === 'Space' || e.key === ' ' || e.code === 'KeyJ') {
       e.preventDefault();
       this.jump();
     }
-    if (e.code === 'KeyE') {
+
+    // Interact with Shop / Temple / Campfire
+    if (e.code === 'KeyE' || e.key === 'e' || e.key === 'E') {
       if (this.isNearTempleEntrance) {
         this.tryEnterMayanTemple();
       } else if (this.isNearShop) {
@@ -2082,37 +2133,57 @@ export class GameWorld {
         this.callbacks.onOpenMultiplierShop?.();
       }
     }
-    if (e.code === 'KeyT') {
+    if (e.code === 'KeyT' || e.key === 't' || e.key === 'T') {
       if (this.isNearShop) {
         this.callbacks.onOpenShop?.();
       }
     }
-    if (e.code === 'KeyR' || e.code === 'KeyQ') {
+
+    // Attack (R key or Left Click)
+    if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
       this.swingSword();
     }
-    if (e.code === 'KeyF') {
+
+    // Flashlight
+    if (e.code === 'KeyF' || e.key === 'f' || e.key === 'F') {
       this.toggleFlashlight();
     }
-    if (e.code === 'KeyG') {
+
+    // VIP Flight / Noclip
+    if (e.code === 'KeyG' || e.key === 'g' || e.key === 'G') {
       this.toggleFlight();
     }
-    if (e.code === 'KeyV') {
+
+    // View Mode (V)
+    if (e.code === 'KeyV' || e.key === 'v' || e.key === 'V') {
       this.toggleViewMode();
     }
-    if (e.code === 'KeyM') {
+
+    // Music (M)
+    if (e.code === 'KeyM' || e.key === 'm' || e.key === 'M') {
       soundEngine.toggleMusic();
     }
-    if (e.code === 'KeyH' || e.code === 'KeyB') {
+
+    // Respawn / Home (H)
+    if (e.code === 'KeyH' || e.key === 'h' || e.key === 'H' || e.code === 'KeyB' || e.key === 'b' || e.key === 'B') {
       this.teleportToSpawn();
     }
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+
+    // Sprint
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.key === 'Shift') {
       this.isSprinting = true;
     }
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
-    this.keyState[e.code] = false;
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    if (e.code) this.keyState[e.code] = false;
+    if (e.key) {
+      this.keyState[e.key] = false;
+      this.keyState[e.key.toLowerCase()] = false;
+      this.keyState[e.key.toUpperCase()] = false;
+    }
+
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.key === 'Shift') {
       this.isSprinting = false;
     }
   };
@@ -2177,6 +2248,15 @@ export class GameWorld {
     freeTemplePass?: boolean;
     flyMode?: boolean;
   }) {
+    if (!this.isVip) {
+      this.isGodMode = false;
+      this.superSpeed = false;
+      this.superJump = false;
+      this.superMagnet = false;
+      this.freeTemplePass = false;
+      this.isFlying = false;
+      return;
+    }
     if (powers.isGodMode !== undefined) this.isGodMode = powers.isGodMode;
     if (powers.superSpeed !== undefined) this.superSpeed = powers.superSpeed;
     if (powers.superJump !== undefined) this.superJump = powers.superJump;
@@ -2187,14 +2267,19 @@ export class GameWorld {
 
   public setVip(vip: boolean) {
     this.isVip = vip;
-    if (!vip && this.isFlying) {
-      this.toggleFlight();
+    if (!vip) {
+      this.isFlying = false;
+      this.isGodMode = false;
+      this.superSpeed = false;
+      this.superJump = false;
+      this.superMagnet = false;
+      this.freeTemplePass = false;
+      this.callbacks.onFlightChange?.(false);
     }
   }
 
   public toggleFlight(): boolean {
     if (!this.isVip) {
-      this.callbacks.onToast?.('🔒 El Modo Vuelo & Noclip es exclusivo para Santiago VIP (santiagosorioax@gmail.com)');
       return false;
     }
     this.isFlying = !this.isFlying;
@@ -2208,7 +2293,7 @@ export class GameWorld {
       this.playerVel.set(0, 6.0, 0);
       soundEngine.playFlightToggleSound(true);
       this.triggerHaptic([30, 40, 60]);
-      this.callbacks.onToast?.('🕊️ ¡Modo Vuelo & Noclip Activado! Atraviesas estructuras y vuelas en 3D');
+      this.callbacks.onToast?.('🕊️ Modo Vuelo');
     } else {
       soundEngine.playFlightToggleSound(false);
       this.triggerHaptic(20);
@@ -2251,7 +2336,7 @@ export class GameWorld {
       let jumpMult = 1.0;
       if (this.equippedSwordId === 'fire_greatsword') jumpMult *= 1.3;
       if (this.equippedSwordId === 'god_blade') jumpMult *= 1.8;
-      if (this.superJump) jumpMult *= 1.9;
+      if (this.isVip && this.superJump) jumpMult *= 1.9;
       if (this.buffs.jumpTimeRemaining > 0) jumpMult *= this.buffs.jumpMultiplier;
 
       this.playerVel.y = 9.5 * jumpMult;
@@ -2699,10 +2784,56 @@ export class GameWorld {
     let moveY = this.moveInput.y;
 
     if (!this.isPlayerDead) {
-      if (this.keyState['KeyW'] || this.keyState['ArrowUp']) moveY -= 1;
-      if (this.keyState['KeyS'] || this.keyState['ArrowDown']) moveY += 1;
-      if (this.keyState['KeyA'] || this.keyState['ArrowLeft']) moveX -= 1;
-      if (this.keyState['KeyD'] || this.keyState['ArrowRight']) moveX += 1;
+      // Forward input (W, ArrowUp, Z for AZERTY, numpad 8)
+      if (
+        this.keyState['KeyW'] ||
+        this.keyState['ArrowUp'] ||
+        this.keyState['w'] ||
+        this.keyState['W'] ||
+        this.keyState['KeyZ'] ||
+        this.keyState['z'] ||
+        this.keyState['Z'] ||
+        this.keyState['Up'] ||
+        this.keyState['Numpad8']
+      ) {
+        moveY -= 1;
+      }
+      // Backward input (S, ArrowDown, numpad 2)
+      if (
+        this.keyState['KeyS'] ||
+        this.keyState['ArrowDown'] ||
+        this.keyState['s'] ||
+        this.keyState['S'] ||
+        this.keyState['Down'] ||
+        this.keyState['Numpad2']
+      ) {
+        moveY += 1;
+      }
+      // Left input (A, ArrowLeft, Q for AZERTY, numpad 4)
+      if (
+        this.keyState['KeyA'] ||
+        this.keyState['ArrowLeft'] ||
+        this.keyState['a'] ||
+        this.keyState['A'] ||
+        this.keyState['KeyQ'] ||
+        this.keyState['q'] ||
+        this.keyState['Q'] ||
+        this.keyState['Left'] ||
+        this.keyState['Numpad4']
+      ) {
+        moveX -= 1;
+      }
+      // Right input (D, ArrowRight, numpad 6)
+      if (
+        this.keyState['KeyD'] ||
+        this.keyState['ArrowRight'] ||
+        this.keyState['d'] ||
+        this.keyState['D'] ||
+        this.keyState['Right'] ||
+        this.keyState['Numpad6']
+      ) {
+        moveX += 1;
+      }
     } else {
       moveX = 0;
       moveY = 0;
@@ -2720,7 +2851,7 @@ export class GameWorld {
     if (this.equippedSwordId === 'neon_katana') speedBonus *= 1.35;
     if (this.equippedSwordId === 'fire_greatsword') speedBonus *= 1.5;
     if (this.equippedSwordId === 'god_blade') speedBonus *= 2.0;
-    if (this.superSpeed) speedBonus *= 1.9;
+    if (this.isVip && this.superSpeed) speedBonus *= 1.9;
     if (this.buffs.speedTimeRemaining > 0) speedBonus *= this.buffs.speedMultiplier;
 
     // Weather impact on player movement speed (e.g. dense fog thick air)
@@ -2808,12 +2939,19 @@ export class GameWorld {
         new THREE.Vector3(this.playerPos.x - playerRadius, this.playerPos.y, prevPos.z - playerRadius),
         new THREE.Vector3(this.playerPos.x + playerRadius, this.playerPos.y + playerHeight, prevPos.z + playerRadius)
       );
+      const prevBoxX = new THREE.Box3(
+        new THREE.Vector3(prevPos.x - playerRadius, prevPos.y, prevPos.z - playerRadius),
+        new THREE.Vector3(prevPos.x + playerRadius, prevPos.y + playerHeight, prevPos.z + playerRadius)
+      );
       for (const col of this.colliders) {
         if (boxX.intersectsBox(col)) {
           if (this.playerPos.y + 0.35 < col.max.y) {
-            this.playerPos.x = prevPos.x;
-            this.playerVel.x = 0;
-            break;
+            // Only stop if moving into the collider, not if already stuck inside
+            if (!prevBoxX.intersectsBox(col)) {
+              this.playerPos.x = prevPos.x;
+              this.playerVel.x = 0;
+              break;
+            }
           }
         }
       }
@@ -2824,12 +2962,18 @@ export class GameWorld {
         new THREE.Vector3(this.playerPos.x - playerRadius, this.playerPos.y, this.playerPos.z - playerRadius),
         new THREE.Vector3(this.playerPos.x + playerRadius, this.playerPos.y + playerHeight, this.playerPos.z + playerRadius)
       );
+      const prevBoxZ = new THREE.Box3(
+        new THREE.Vector3(prevPos.x - playerRadius, prevPos.y, prevPos.z - playerRadius),
+        new THREE.Vector3(prevPos.x + playerRadius, prevPos.y + playerHeight, prevPos.z + playerRadius)
+      );
       for (const col of this.colliders) {
         if (boxZ.intersectsBox(col)) {
           if (this.playerPos.y + 0.35 < col.max.y) {
-            this.playerPos.z = prevPos.z;
-            this.playerVel.z = 0;
-            break;
+            if (!prevBoxZ.intersectsBox(col)) {
+              this.playerPos.z = prevPos.z;
+              this.playerVel.z = 0;
+              break;
+            }
           }
         }
       }
@@ -2887,9 +3031,10 @@ export class GameWorld {
           if (stepDelta > 1.2 && this.isOnGround) {
             this.playerPos.x = prevPos.x;
             this.playerPos.z = prevPos.z;
-            this.playerPos.y = prevPos.y;
+            this.playerPos.y = Math.max(terrainGroundY, prevPos.y);
             this.playerVel.x = 0;
             this.playerVel.z = 0;
+            this.isOnGround = true;
           } else {
             this.playerPos.y = terrainGroundY;
             this.playerVel.y = 0;
@@ -3039,15 +3184,53 @@ export class GameWorld {
       }
     }
 
+    // 11.3 Valley Structures & Campfires
+    this.valleyStructures?.update(dt, time);
+
+    // Campfire Safe Zone Proximity Check
+    let currentNearCampfire = false;
+    if (this.currentWorld === 'main' && this.valleyStructures) {
+      for (const cf of this.valleyStructures.campfires) {
+        const dist = Math.hypot(this.playerPos.x - cf.pos.x, this.playerPos.z - cf.pos.z);
+        if (dist <= cf.safeRadius) {
+          currentNearCampfire = true;
+          break;
+        }
+      }
+    }
+
+    if (currentNearCampfire !== this.isNearCampfire) {
+      this.isNearCampfire = currentNearCampfire;
+      this.callbacks.onNearCampfire?.(currentNearCampfire);
+      if (currentNearCampfire) {
+        this.callbacks.onToast?.('🔥 ¡Zona Segura: Fogata! Los zombis no te pueden atacar.');
+      }
+    }
+
+    // Campfire restorative healing (restores +1 HP every 4.0s near campfire)
+    if (this.isNearCampfire && this.playerHealth < this.maxPlayerHealth && !this.isPlayerDead) {
+      this.campfireHealTimer += dt;
+      if (this.campfireHealTimer >= 4.0) {
+        this.campfireHealTimer = 0;
+        this.playerHealth = Math.min(this.maxPlayerHealth, this.playerHealth + 1);
+        this.callbacks.onPlayerHealthUpdate?.(this.playerHealth, this.maxPlayerHealth);
+        soundEngine.playCampfireHeal();
+        this.callbacks.onToast?.('✨ El calor de la fogata restaura +1 de Vida');
+        this.spawnCoinSparkles(this.playerPos.clone().add(new THREE.Vector3(0, 0.8, 0)), 'gem');
+      }
+    } else if (!this.isNearCampfire) {
+      this.campfireHealTimer = 0;
+    }
+
     // 12. Update Zombies (AI, Pathing, Attack, Hit Feedback)
     if (this.playerInvincibleTimer > 0) {
       this.playerInvincibleTimer -= dt;
     }
     const isNight = this.currentPeriod === 'night' || this.currentPeriod === 'sunset';
     this.zombieSystem?.update(dt, this.playerPos, this.currentWorld, isNight, (knockDir, isSugarZombie) => {
-      if (this.isPlayerDead || this.playerInvincibleTimer > 0 || this.isFlying) return;
+      if (this.isPlayerDead || this.playerInvincibleTimer > 0 || this.isFlying || this.isNearCampfire) return;
 
-      if (this.isGodMode) {
+      if (this.isVip && this.isGodMode) {
         this.playerInvincibleTimer = 0.5;
         this.playerVel.x = knockDir.x * 4;
         this.playerVel.z = knockDir.z * 4;
@@ -3212,8 +3395,8 @@ export class GameWorld {
     }
 
     const collectRadius = 1.6;
-    const isMagnetActive = this.superMagnet || this.buffs.magnetTimeRemaining > 0;
-    const magnetRadius = this.superMagnet ? 50.0 : this.buffs.magnetRadius;
+    const isMagnetActive = (this.isVip && this.superMagnet) || this.buffs.magnetTimeRemaining > 0;
+    const magnetRadius = (this.isVip && this.superMagnet) ? 50.0 : this.buffs.magnetRadius;
 
     this.coins.forEach((c) => {
       if (c.data.collected) return;

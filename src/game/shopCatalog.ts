@@ -36,18 +36,6 @@ export const SHOP_ITEMS: ShopItem[] = [
     speedMultiplier: 1.5,
     jumpMultiplier: 1.3,
   },
-  {
-    id: 'god_blade',
-    name: 'Espada Divina del Creador',
-    category: 'sword',
-    price: 999,
-    description: 'Arma celestial exclusiva de Administrador. Destellos cósmicos, +100% velocidad, +80% de salto y daño fulminante contra zombis y jefes.',
-    icon: '👑',
-    color: '#a855f7',
-    badge: 'VIP SUPREMO',
-    speedMultiplier: 2.0,
-    jumpMultiplier: 1.8,
-  },
 
   // --- BEBIDAS ENERGÉTICAS (POCIONES) ---
   {

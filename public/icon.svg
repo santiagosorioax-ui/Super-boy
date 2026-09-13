@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="50%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+    <linearGradient id="starGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="100%" stop-color="#eab308" />
+    </linearGradient>
+  </defs>
+  <!-- Background Rounded Rect -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" />
+  <!-- Shield Badge -->
+  <path d="M 256 64 L 416 128 C 416 288 340 396 256 448 C 172 396 96 288 96 128 Z" fill="url(#shieldGrad)" stroke="#fcd34d" stroke-width="12" stroke-linejoin="round" />
+  <!-- Inner Shield -->
+  <path d="M 256 96 L 388 150 C 388 280 324 370 256 414 C 188 370 124 280 124 150 Z" fill="#0f172a" opacity="0.85" />
+  <!-- Star / Lightning Center -->
+  <polygon points="256,140 286,220 372,224 304,276 328,360 256,310 184,360 208,276 140,224 226,220" fill="url(#starGrad)" stroke="#fff" stroke-width="6" />
+</svg>

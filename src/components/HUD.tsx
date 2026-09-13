@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Coins, 
   Sun, 
@@ -30,7 +30,10 @@ import {
   Crown,
   CloudRain,
   CloudFog,
-  Wind
+  Wind,
+  Maximize,
+  Minimize,
+  X
 } from 'lucide-react';
 import { TimeState, PlayerInventory, WorldDimension, MayanBossState, ControlDevice, WeatherState, WeatherType } from '../types';
 import { User } from 'firebase/auth';
@@ -55,6 +58,7 @@ interface HUDProps {
   isNearShop?: boolean;
   isNearMultiplierShop?: boolean;
   isNearTemple?: boolean;
+  isNearCampfire?: boolean;
   templeCost?: number;
   onEnterTemple?: () => void;
   bossState?: MayanBossState | null;
@@ -93,6 +97,8 @@ interface HUDProps {
   onLookTouchMove: (e: React.TouchEvent) => void;
   onLookTouchEnd: (e: React.TouchEvent) => void;
   lastToast: string | null;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -115,6 +121,7 @@ export const HUD: React.FC<HUDProps> = ({
   isNearShop = false,
   isNearMultiplierShop = false,
   isNearTemple = false,
+  isNearCampfire = false,
   templeCost = 500,
   onEnterTemple,
   bossState,
@@ -151,7 +158,10 @@ export const HUD: React.FC<HUDProps> = ({
   onLookTouchMove,
   onLookTouchEnd,
   lastToast,
+  isFullscreen = false,
+  onToggleFullscreen,
 }) => {
+  const [hideFsBanner, setHideFsBanner] = useState(false);
   const getPeriodBadge = () => {
     switch (timeState.period) {
       case 'dawn':
@@ -314,15 +324,15 @@ export const HUD: React.FC<HUDProps> = ({
           )}
         </div>
 
-        {/* Center: Day/Night Clock Widget & Optional Zombie/FPS Indicators */}
-        <div className="flex items-center gap-1.5">
+        {/* Center: Day/Night Clock Widget & Optional Zombie/FPS Indicators - Compact */}
+        <div className="flex items-center gap-1">
           {/* Zombie Kills Badge if any */}
           {zombiesDefeated > 0 && (
             <div
               id="hud-zombie-counter"
-              className="flex items-center gap-1 bg-red-950/80 backdrop-blur-md border border-red-500/40 text-red-300 rounded-xl px-2 py-1 shadow-md text-xs font-bold"
+              className="flex items-center gap-1 bg-red-950/80 backdrop-blur-md border border-red-500/40 text-red-300 rounded-lg px-1.5 py-0.5 shadow-sm text-[10px] font-bold"
             >
-              <Sword className="w-3 h-3 text-red-400" />
+              <Sword className="w-2.5 h-2.5 text-red-400" />
               <span>{zombiesDefeated}</span>
             </div>
           )}
@@ -330,14 +340,14 @@ export const HUD: React.FC<HUDProps> = ({
           {/* Day/Night Clock */}
           <div 
             id="hud-time-widget"
-            className={`flex items-center gap-1.5 backdrop-blur-md border rounded-xl px-2.5 py-1 shadow-md ${period.bg}`}
+            className={`flex items-center gap-1 backdrop-blur-md border rounded-lg px-2 py-0.5 shadow-sm ${period.bg}`}
           >
             {period.icon}
             <div className="flex flex-col text-left">
-              <span className="text-xs font-bold tracking-wider leading-none">
+              <span className="text-[10px] font-bold tracking-wider leading-none">
                 {timeState.formattedTime}
               </span>
-              <span className="text-[9px] opacity-80 uppercase tracking-widest font-semibold mt-0.5 leading-none">
+              <span className="text-[8px] opacity-80 uppercase tracking-widest font-semibold leading-none">
                 {period.label}
               </span>
             </div>
@@ -355,15 +365,15 @@ export const HUD: React.FC<HUDProps> = ({
                 onSelectWeather(nextType);
               }
             }}
-            className={`flex items-center gap-1.5 backdrop-blur-md border rounded-xl px-2.5 py-1 shadow-md transition-all select-none hover:scale-105 active:scale-95 ${weatherBadge.bg}`}
+            className={`flex items-center gap-1 backdrop-blur-md border rounded-lg px-2 py-0.5 shadow-sm transition-all select-none hover:scale-105 active:scale-95 ${weatherBadge.bg}`}
             title={weatherState ? `${weatherState.description} (Haz clic para alternar clima)` : 'Clima dinámico'}
           >
             {weatherBadge.icon}
             <div className="flex flex-col text-left">
-              <span className="text-xs font-bold tracking-wider leading-none">
+              <span className="text-[10px] font-bold tracking-wider leading-none">
                 {weatherBadge.label}
               </span>
-              <span className="text-[9px] opacity-80 uppercase tracking-wider font-semibold mt-0.5 leading-none">
+              <span className="text-[8px] opacity-80 uppercase tracking-wider font-semibold leading-none">
                 {weatherBadge.detail}
               </span>
             </div>
@@ -373,7 +383,7 @@ export const HUD: React.FC<HUDProps> = ({
           {showFps && (
             <div
               id="hud-fps-counter"
-              className={`px-2 py-1 rounded-xl backdrop-blur-md border shadow-md text-[11px] font-mono font-bold flex items-center gap-1 ${
+              className={`px-1.5 py-0.5 rounded-lg backdrop-blur-md border shadow-sm text-[10px] font-mono font-bold flex items-center gap-0.5 ${
                 fps >= 45 
                   ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300' 
                   : fps >= 25 
@@ -382,7 +392,7 @@ export const HUD: React.FC<HUDProps> = ({
               }`}
             >
               <span>{fps}</span>
-              <span className="text-[8px] font-sans opacity-70">FPS</span>
+              <span className="text-[7px] font-sans opacity-70">FPS</span>
             </div>
           )}
 
@@ -390,51 +400,41 @@ export const HUD: React.FC<HUDProps> = ({
           {radar && (
             <div
               id="hud-radar-compass"
-              className="hidden md:flex items-center gap-1 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 rounded-xl px-2 py-1 text-white shadow-md text-xs"
+              className="hidden md:flex items-center gap-1 bg-slate-950/80 backdrop-blur-md border border-slate-700/60 rounded-lg px-1.5 py-0.5 text-white shadow-sm text-[10px]"
               title="Brújula a la moneda más cercana"
             >
               <Compass 
-                className="w-3.5 h-3.5 text-emerald-400 transition-transform duration-100" 
+                className="w-3 h-3 text-emerald-400 transition-transform duration-100" 
                 style={{ transform: `rotate(${radar.angleDeg}deg)` }}
               />
-              <span className="font-semibold text-emerald-300 text-[11px]">{radar.distance}m</span>
+              <span className="font-semibold text-emerald-300 text-[10px]">{radar.distance}m</span>
             </div>
           )}
         </div>
 
-        {/* Right: Quick Action Controls (Sound, Outfits, Leaderboard, Help, Settings) - Shrunk as requested */}
+        {/* Right: Quick Action Controls (Shrunk except Life and Coins, with highlighted ROPA button) */}
         <div className="flex items-center gap-1">
           {/* Google Auth Status / Cloud Save */}
           {currentUser ? (
             <div
               id="hud-user-profile"
-              className={`hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg backdrop-blur-md shadow-sm text-[11px] border ${
-                isVip
-                  ? 'bg-amber-950/90 border-amber-400/80 text-amber-200'
-                  : 'bg-slate-900/80 border-slate-700/80 text-slate-200'
-              }`}
-              title={
-                isVip
-                  ? `👑 VIP Santiago (${currentUser.email}) - Poderes Ilimitados Activos`
-                  : `Conectado como ${currentUser.displayName || currentUser.email} (Progreso guardado en Firebase)`
-              }
+              className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-lg backdrop-blur-md shadow-sm text-[10px] border bg-slate-900/80 border-slate-700/80 text-slate-200"
+              title={`Conectado como ${currentUser.displayName || currentUser.email} (Progreso guardado)`}
             >
-              {isVip ? (
-                <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400 animate-bounce" />
-              ) : currentUser.photoURL ? (
+              {currentUser.photoURL ? (
                 <img
                   src={currentUser.photoURL}
                   alt=""
                   referrerPolicy="no-referrer"
-                  className="w-3.5 h-3.5 rounded-full border border-emerald-400/70"
+                  className="w-3 h-3 rounded-full border border-emerald-400/70"
                 />
               ) : (
-                <UserIcon className="w-3 h-3 text-amber-400" />
+                <UserIcon className="w-2.5 h-2.5 text-slate-300" />
               )}
-              <span className={`font-semibold text-[10px] max-w-[80px] truncate ${isVip ? 'text-amber-300 font-black' : 'text-slate-200'}`}>
-                {isVip ? 'Santiago' : currentUser.displayName?.split(' ')[0] || 'Jugador'}
+              <span className="font-semibold text-[9px] max-w-[65px] truncate text-slate-200">
+                {currentUser.displayName?.split(' ')[0] || (isVip ? 'Santiago' : 'Jugador')}
               </span>
-              <Cloud className={`w-2.5 h-2.5 ${isVip ? 'text-amber-400' : 'text-emerald-400'}`} />
+              <Cloud className="w-2 h-2 text-emerald-400" />
             </div>
           ) : (
             <button
@@ -445,58 +445,38 @@ export const HUD: React.FC<HUDProps> = ({
                 onSignInGoogle?.();
               }}
               title="Guardar partida en Firebase con Google"
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/80 hover:bg-blue-500 border border-blue-400/60 text-white font-bold text-[10px] shadow-sm transition active:scale-95 touch-none select-none"
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg bg-blue-600/80 hover:bg-blue-500 border border-blue-400/60 text-white font-bold text-[9px] shadow-sm transition active:scale-95 touch-none select-none"
             >
-              <LogIn className="w-3 h-3 text-blue-200" />
-              <span className="hidden sm:inline text-[10px]">Guardar</span>
+              <LogIn className="w-2.5 h-2.5 text-blue-200" />
+              <span className="hidden sm:inline text-[9px]">Guardar</span>
             </button>
           )}
 
-          {/* VIP Santiago Control Button */}
+          {/* Creator Flight Mode Button (Discreet) */}
           {isVip && (
-            <>
-              <button
-                id="hud-btn-vip"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  onOpenVipProfile?.();
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenVipProfile?.();
-                }}
-                aria-label="Panel VIP Dios"
-                title="Panel VIP Santiago - Modo Dios y Poderes Ilimitados"
-                className="p-1.5 rounded-lg border border-amber-400 bg-gradient-to-tr from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-black shadow-md shadow-amber-500/30 transition active:scale-95 touch-none select-none animate-pulse"
-              >
-                <Crown className="w-3.5 h-3.5 text-slate-950 fill-slate-950" />
-              </button>
-
-              {/* VIP Flight & Noclip Mode Button */}
-              <button
-                id="hud-btn-fly"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  (e.currentTarget as HTMLElement)?.blur();
-                  onToggleFlight?.();
-                }}
-                aria-label="Volar y Atravesar Estructuras"
-                title="Volar a Super Velocidad y Atravesar Estructuras (Noclip) [Tecla G]"
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none cursor-pointer font-black text-[10px] ${
-                  isFlying
-                    ? 'bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-300 border-yellow-200 text-slate-950 ring-1 ring-yellow-400 shadow-yellow-500/50 animate-pulse'
-                    : 'bg-slate-900/85 hover:bg-slate-800 border-sky-400/60 text-sky-300 hover:text-white'
-                }`}
-              >
-                <span className="text-xs leading-none">🕊️</span>
-                <span className="text-[10px] font-black tracking-wide hidden sm:inline">
-                  {isFlying ? 'NOCLIP' : 'VOLAR'}
-                </span>
-              </button>
-            </>
+            <button
+              id="hud-btn-fly"
+              onClick={(e) => {
+                e.stopPropagation();
+                (e.currentTarget as HTMLElement)?.blur();
+                onToggleFlight?.();
+              }}
+              aria-label="Volar"
+              title="Volar [G]"
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none cursor-pointer font-bold text-[9px] ${
+                isFlying
+                  ? 'bg-sky-500 border-sky-300 text-white shadow-sm'
+                  : 'bg-slate-900/85 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+              }`}
+            >
+              <span className="text-[10px] leading-none">🕊️</span>
+              <span className="text-[9px] font-bold tracking-wide hidden sm:inline">
+                {isFlying ? 'VOLANDO' : 'VUELO'}
+              </span>
+            </button>
           )}
 
-          {/* Leaderboard High Scores Button */}
+          {/* Leaderboard High Scores Button (Shrunk) */}
           <button
             id="hud-btn-leaderboard"
             onPointerDown={(e) => {
@@ -509,12 +489,12 @@ export const HUD: React.FC<HUDProps> = ({
             }}
             aria-label="Ranking Global"
             title="Ranking de Mejores Jugadores"
-            className="p-1.5 rounded-lg border border-amber-500/40 bg-amber-950/80 hover:bg-amber-900/80 backdrop-blur-md text-amber-300 hover:text-amber-100 shadow-sm transition active:scale-95 touch-none select-none"
+            className="p-1 rounded-lg border border-amber-500/40 bg-amber-950/80 hover:bg-amber-900/80 backdrop-blur-md text-amber-300 hover:text-amber-100 shadow-sm transition active:scale-95 touch-none select-none"
           >
-            <Trophy className="w-3.5 h-3.5 text-amber-400" />
+            <Trophy className="w-3 h-3 text-amber-400" />
           </button>
 
-          {/* Control Mode Toggle Button (PC vs Celular) */}
+          {/* Control Mode Toggle Button (PC vs Celular) (Shrunk) */}
           <button
             id="hud-btn-control-mode"
             onPointerDown={(e) => {
@@ -527,7 +507,7 @@ export const HUD: React.FC<HUDProps> = ({
             }}
             aria-label={controlMode === 'mobile' ? 'Modo Celular (Táctil)' : 'Modo PC (Teclado/Ratón)'}
             title={controlMode === 'mobile' ? 'Modo Celular (Clic para cambiar a PC)' : 'Modo PC (Clic para cambiar a Celular)'}
-            className={`p-1.5 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none flex items-center gap-1 text-[10px] font-bold ${
+            className={`px-1.5 py-0.5 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none flex items-center gap-0.5 text-[9px] font-bold ${
               controlMode === 'mobile'
                 ? 'bg-emerald-600/80 border-emerald-400/60 text-white shadow-emerald-950/40'
                 : 'bg-blue-600/80 border-blue-400/60 text-white shadow-blue-950/40'
@@ -535,18 +515,18 @@ export const HUD: React.FC<HUDProps> = ({
           >
             {controlMode === 'mobile' ? (
               <>
-                <Smartphone className="w-3.5 h-3.5 text-emerald-200" />
+                <Smartphone className="w-3 h-3 text-emerald-200" />
                 <span className="hidden sm:inline text-[9px]">CEL</span>
               </>
             ) : (
               <>
-                <Monitor className="w-3.5 h-3.5 text-cyan-200" />
+                <Monitor className="w-3 h-3 text-cyan-200" />
                 <span className="hidden sm:inline text-[9px]">PC</span>
               </>
             )}
           </button>
 
-          {/* Clothing / Wardrobe Button - Customization & Shop */}
+          {/* Clothing / Wardrobe Button - Highlighted for Customization & Outfits */}
           <button
             id="hud-btn-outfits"
             onPointerDown={(e) => {
@@ -558,10 +538,11 @@ export const HUD: React.FC<HUDProps> = ({
               onOpenWardrobe?.();
             }}
             aria-label="Armario y Ropa"
-            title="Armario: Cambiar ropa, sombreros, zapatos y género del personaje"
-            className="p-1.5 rounded-lg border border-purple-500/50 bg-purple-950/90 hover:bg-purple-900/90 hover:border-purple-400 backdrop-blur-md text-purple-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
+            title="Tienda de Ropa: Cambiar ropa, sombreros, zapatos, mochilas y cambiar de hombre a mujer con monedas"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-purple-400/80 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xs shadow-md shadow-purple-950/60 transition-all hover:scale-105 active:scale-95 touch-none select-none"
           >
-            <Shirt className="w-3.5 h-3.5" />
+            <Shirt className="w-3.5 h-3.5 text-yellow-300" />
+            <span className="tracking-wider">ROPA</span>
           </button>
 
           <button
@@ -575,13 +556,13 @@ export const HUD: React.FC<HUDProps> = ({
               onToggleMusic();
             }}
             aria-label="Música"
-            className={`p-1.5 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none ${
+            className={`p-1 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none ${
               isMusicOn
                 ? 'bg-emerald-600/80 border-emerald-400/50 text-white'
                 : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-white'
             }`}
           >
-            {isMusicOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            {isMusicOn ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
           </button>
 
           <button
@@ -595,9 +576,9 @@ export const HUD: React.FC<HUDProps> = ({
               onOpenHelp();
             }}
             aria-label="Ayuda"
-            className="p-1.5 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
+            className="p-1 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
           >
-            <HelpCircle className="w-3.5 h-3.5" />
+            <HelpCircle className="w-3 h-3" />
           </button>
 
           <button
@@ -611,13 +592,70 @@ export const HUD: React.FC<HUDProps> = ({
               onOpenSettings();
             }}
             aria-label="Ajustes"
-            className="p-1.5 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
+            className="p-1 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
           >
-            <Settings className="w-3.5 h-3.5" />
+            <Settings className="w-3 h-3" />
           </button>
+
+          {/* Fullscreen Button to Hide Mobile URL and Browser Bars */}
+          {onToggleFullscreen && (
+            <button
+              id="hud-btn-fullscreen"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onToggleFullscreen();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFullscreen();
+              }}
+              aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa (Ocultar barra de URL)'}
+              title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa (Oculta la barra de URL y navegación)'}
+              className={`p-1 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none ${
+                isFullscreen
+                  ? 'border-emerald-500/80 bg-emerald-950/80 text-emerald-300'
+                  : 'border-cyan-500/80 bg-cyan-950/80 hover:bg-cyan-900/80 text-cyan-300'
+              }`}
+            >
+              {isFullscreen ? (
+                <Minimize className="w-3 h-3" />
+              ) : (
+                <Maximize className="w-3 h-3 animate-pulse" />
+              )}
+            </button>
+          )}
         </div>
 
       </header>
+
+      {/* Interactive Mobile Prompt to Hide URL Bar */}
+      {!isFullscreen && !hideFsBanner && onToggleFullscreen && (
+        <div 
+          id="hud-fullscreen-prompt"
+          className="absolute top-12 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-950/95 backdrop-blur-md border border-cyan-500/70 text-cyan-300 text-[10px] sm:text-xs font-bold shadow-xl shadow-black/80 animate-bounce pointer-events-auto"
+        >
+          <button
+            onClick={() => {
+              onToggleFullscreen();
+              setHideFsBanner(true);
+            }}
+            className="flex items-center gap-1.5 hover:text-white transition active:scale-95"
+          >
+            <Maximize className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Toca para Pantalla Completa (Quitar barra de URL)</span>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setHideFsBanner(true);
+            }}
+            className="ml-1 p-0.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+            title="Cerrar aviso"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
       {/* 1.05 ACTIVE WEATHER EFFECT ALERT PILL */}
       {weatherBadge.alert && currentDimension !== 'mayan_boss' && (
@@ -692,6 +730,19 @@ export const HUD: React.FC<HUDProps> = ({
               <span>Imán de Monedas: {Math.ceil(inventory.activeBuffs.magnetTimeRemaining)}s</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 2.1 CAMPFIRE SAFE ZONE BADGE */}
+      {isNearCampfire && (
+        <div className="absolute top-18 sm:top-16 left-1/2 -translate-x-1/2 pointer-events-none z-20 animate-pulse">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-orange-950/90 via-amber-950/95 to-orange-950/90 border-2 border-amber-400/80 text-amber-200 text-xs font-black shadow-xl shadow-amber-500/20 backdrop-blur-md">
+            <span className="text-base animate-bounce">🔥</span>
+            <div className="flex flex-col text-left">
+              <span className="text-[11px] font-black tracking-wide text-amber-300 uppercase">Zona Segura (Fogata)</span>
+              <span className="text-[9px] text-amber-200/90 font-medium">Inmune a zombis • Curación activa (+1 HP)</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -771,15 +822,12 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* 5.1 VIP FLIGHT & NOCLIP ACTIVE BADGE */}
+      {/* 5.1 Flight Active Badge */}
       {isFlying && (
         <div className="absolute top-28 left-1/2 -translate-x-1/2 pointer-events-none transition-all duration-300 z-30 animate-fade-in">
-          <div className="bg-slate-950/95 text-yellow-300 border-2 border-yellow-400 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-black shadow-2xl shadow-yellow-500/30 flex items-center gap-2 ring-2 ring-yellow-400/40">
-            <span className="text-base animate-bounce">🕊️</span>
-            <span>MODO VUELO & NOCLIP VIP</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-slate-950 font-black">
-              SUPER VELOCIDAD & ATRAVIESA MUROS
-            </span>
+          <div className="bg-slate-950/90 text-sky-300 border border-sky-400 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-bold shadow-xl flex items-center gap-2">
+            <span className="text-base">🕊️</span>
+            <span>MODO VUELO ACTIVO</span>
           </div>
         </div>
       )}
@@ -908,7 +956,7 @@ export const HUD: React.FC<HUDProps> = ({
               <Zap className="w-5 h-5" />
             </button>
 
-            {/* VIP Fly Mode Quick Button (Mobile) */}
+            {/* Creator Fly Mode Quick Button (Mobile) */}
             {isVip && (
               <button
                 id="btn-action-fly-toggle"
@@ -919,10 +967,10 @@ export const HUD: React.FC<HUDProps> = ({
                 }}
                 className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none cursor-pointer ${
                   isFlying
-                    ? 'bg-gradient-to-tr from-yellow-400 via-amber-400 to-yellow-300 border-yellow-200 text-slate-950 font-black ring-2 ring-yellow-400 shadow-yellow-500/50 animate-pulse'
-                    : 'bg-slate-900/80 border-sky-400 text-sky-300 hover:text-white'
+                    ? 'bg-sky-500 border-sky-300 text-white shadow-sky-500/40'
+                    : 'bg-slate-900/80 border-slate-700 text-slate-300 hover:text-white'
                 }`}
-                title="Volar y Atravesar Estructuras"
+                title="Modo Vuelo"
               >
                 <span className="text-xl">🕊️</span>
               </button>
@@ -1008,13 +1056,6 @@ export const HUD: React.FC<HUDProps> = ({
           id="pc-controls-hint-bar"
           className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2.5 text-[11px] text-slate-200/90 bg-slate-950/85 border border-slate-700/80 backdrop-blur-md px-4 py-1.5 rounded-full shadow-xl pointer-events-none z-20 max-w-[95vw] overflow-x-auto whitespace-nowrap animate-fade-in"
         >
-          {isVip && (
-            <>
-              <span className="text-yellow-300 font-black">🕊️ G</span>
-              <span className="text-yellow-200">Volar/Noclip</span>
-              <span className="text-slate-500">•</span>
-            </>
-          )}
           <span className="text-amber-300 font-semibold">🖱️ Clic Derecho (mantener)</span> Girar Cámara
           <span className="text-slate-500">•</span>
           <span className="text-rose-300 font-semibold">🖱️ Clic Izq / R</span> Atacar
