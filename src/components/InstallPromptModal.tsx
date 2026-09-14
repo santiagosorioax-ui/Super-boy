@@ -89,8 +89,8 @@ export const InstallPromptModal: React.FC<InstallPromptModalProps> = ({
           {/* Header */}
           <div className="p-5 bg-gradient-to-r from-amber-600/30 via-slate-900 to-indigo-600/30 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shadow-inner">
-                <Download className="w-6 h-6 animate-bounce" />
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shadow-inner overflow-hidden p-1">
+                <img src="/icon.svg" alt="Espada Legendaria - Super Boy 3D" className="w-full h-full object-contain drop-shadow" />
               </div>
               <div>
                 <h3 className="font-black text-lg text-white flex items-center gap-2">

@@ -1,26 +1,169 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
+    <!-- Background Gradients -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1e1b4b" />
       <stop offset="50%" stop-color="#0f172a" />
       <stop offset="100%" stop-color="#020617" />
     </linearGradient>
+
+    <!-- Radial Aura -->
+    <radialGradient id="auraGrad" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.35" />
+      <stop offset="55%" stop-color="#6366f1" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Shield Gradient -->
     <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#f59e0b" />
-      <stop offset="50%" stop-color="#ef4444" />
-      <stop offset="100%" stop-color="#ec4899" />
+      <stop offset="45%" stop-color="#d97706" />
+      <stop offset="100%" stop-color="#991b1b" />
     </linearGradient>
-    <linearGradient id="starGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+
+    <!-- Blade Steel Left (Shadow side) -->
+    <linearGradient id="bladeLeft" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#94a3b8" />
+      <stop offset="50%" stop-color="#cbd5e1" />
+      <stop offset="100%" stop-color="#64748b" />
+    </linearGradient>
+
+    <!-- Blade Steel Right (Light highlight side) -->
+    <linearGradient id="bladeRight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="60%" stop-color="#e2e8f0" />
+      <stop offset="100%" stop-color="#94a3b8" />
+    </linearGradient>
+
+    <!-- Blade Energy Channel -->
+    <linearGradient id="bladeEnergy" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="60%" stop-color="#67e8f9" />
+      <stop offset="100%" stop-color="#ffffff" />
+    </linearGradient>
+
+    <!-- Gold Accents (Hilt & Guard) -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#fef08a" />
-      <stop offset="100%" stop-color="#eab308" />
+      <stop offset="40%" stop-color="#f59e0b" />
+      <stop offset="80%" stop-color="#b45309" />
+      <stop offset="100%" stop-color="#78350f" />
     </linearGradient>
+
+    <!-- Gem Gradient -->
+    <radialGradient id="rubyGrad" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#fca5a5" />
+      <stop offset="35%" stop-color="#ef4444" />
+      <stop offset="80%" stop-color="#991b1b" />
+      <stop offset="100%" stop-color="#450a0a" />
+    </radialGradient>
   </defs>
-  <!-- Background Rounded Rect -->
-  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" />
-  <!-- Shield Badge -->
-  <path d="M 256 64 L 416 128 C 416 288 340 396 256 448 C 172 396 96 288 96 128 Z" fill="url(#shieldGrad)" stroke="#fcd34d" stroke-width="12" stroke-linejoin="round" />
-  <!-- Inner Shield -->
-  <path d="M 256 96 L 388 150 C 388 280 324 370 256 414 C 188 370 124 280 124 150 Z" fill="#0f172a" opacity="0.85" />
-  <!-- Star / Lightning Center -->
-  <polygon points="256,140 286,220 372,224 304,276 328,360 256,310 184,360 208,276 140,224 226,220" fill="url(#starGrad)" stroke="#fff" stroke-width="6" />
+
+  <!-- Background App Squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect width="500" height="500" x="6" y="6" rx="106" fill="none" stroke="#38bdf8" stroke-width="2" opacity="0.3" />
+
+  <!-- Mystical Radial Glow behind Crest -->
+  <circle cx="256" cy="250" r="210" fill="url(#auraGrad)" />
+
+  <!-- Crest Shield Backdrop -->
+  <path d="M 256 65 L 396 115 C 396 260 330 355 256 405 C 182 355 116 260 116 115 Z"
+        fill="url(#shieldGrad)"
+        stroke="#fef08a"
+        stroke-width="10"
+        stroke-linejoin="round"
+        filter="drop-shadow(0 14px 20px rgba(0,0,0,0.6))" />
+
+  <path d="M 256 88 L 374 130 C 374 250 318 335 256 378 C 194 335 138 250 138 130 Z"
+        fill="#090d16"
+        opacity="0.9" />
+
+  <!-- Decorative Inner Shield Sigil Lines -->
+  <path d="M 180 160 L 332 160 M 200 220 L 312 220" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" opacity="0.4" />
+
+  <!-- ==================== THE SWORD ==================== -->
+
+  <!-- Sword Blade Aura/Glow -->
+  <path d="M 256 60 L 292 275 L 284 340 L 228 340 L 220 275 Z"
+        fill="#38bdf8"
+        opacity="0.35"
+        filter="blur(10px)" />
+
+  <!-- Blade Left Side (Steel Shaded) -->
+  <path d="M 256 70 L 256 345 L 228 345 L 235 270 Z"
+        fill="url(#bladeLeft)" />
+
+  <!-- Blade Right Side (Steel Bright/Reflective) -->
+  <path d="M 256 70 L 277 270 L 284 345 L 256 345 Z"
+        fill="url(#bladeRight)" />
+
+  <!-- Center Blade Edge (Sharp Diamond Bevel) -->
+  <line x1="256" y1="70" x2="256" y2="345" stroke="#ffffff" stroke-width="2.5" />
+
+  <!-- Glowing Mystic Energy Core down the center -->
+  <path d="M 256 95 L 259 265 L 256 315 L 253 265 Z" fill="url(#bladeEnergy)" opacity="0.9" />
+
+  <!-- Blade Engravings / Runes -->
+  <polygon points="256,150 259,165 256,180 253,165" fill="#e0f2fe" opacity="0.8" />
+  <polygon points="256,195 258,206 256,218 254,206" fill="#bae6fd" opacity="0.7" />
+
+  <!-- Crossguard Wing Left -->
+  <path d="M 256 345 C 220 340 185 320 156 332 C 145 336 142 348 152 356 C 182 376 220 368 256 364 Z"
+        fill="url(#goldGrad)"
+        stroke="#fef08a"
+        stroke-width="3"
+        stroke-linejoin="round"
+        filter="drop-shadow(0 4px 6px rgba(0,0,0,0.5))" />
+
+  <!-- Crossguard Wing Right -->
+  <path d="M 256 345 C 292 340 327 320 356 332 C 367 336 370 348 360 356 C 330 376 292 368 256 364 Z"
+        fill="url(#goldGrad)"
+        stroke="#fef08a"
+        stroke-width="3"
+        stroke-linejoin="round"
+        filter="drop-shadow(0 4px 6px rgba(0,0,0,0.5))" />
+
+  <!-- Crossguard Center Shield Boss (Gold) -->
+  <polygon points="256,336 278,354 256,372 234,354"
+           fill="url(#goldGrad)"
+           stroke="#fff"
+           stroke-width="2" />
+
+  <!-- Central Red Ruby Gem -->
+  <circle cx="256" cy="354" r="11" fill="url(#rubyGrad)" stroke="#fef08a" stroke-width="2.5" />
+  <circle cx="253" cy="351" r="3" fill="#ffffff" opacity="0.9" />
+
+  <!-- Sword Grip / Handle (Leather wrapped with gold rings) -->
+  <rect x="246" y="368" width="20" height="66" rx="4" fill="#312e81" stroke="#1e1b4b" stroke-width="2" />
+  <line x1="246" y1="380" x2="266" y2="384" stroke="#f59e0b" stroke-width="3" />
+  <line x1="246" y1="396" x2="266" y2="400" stroke="#f59e0b" stroke-width="3" />
+  <line x1="246" y1="412" x2="266" y2="416" stroke="#f59e0b" stroke-width="3" />
+  <line x1="246" y1="426" x2="266" y2="428" stroke="#f59e0b" stroke-width="3" />
+
+  <!-- Pommel (Crown / Diamond Octagon) -->
+  <polygon points="256,432 273,446 256,462 239,446"
+           fill="url(#goldGrad)"
+           stroke="#fef08a"
+           stroke-width="3"
+           stroke-linejoin="round"
+           filter="drop-shadow(0 5px 8px rgba(0,0,0,0.6))" />
+  <circle cx="256" cy="446" r="4.5" fill="url(#rubyGrad)" />
+
+  <!-- Blade Gleam Glints (Sparkles of light) -->
+  <!-- Glint 1 on tip -->
+  <g transform="translate(256, 72) scale(0.9)">
+    <polygon points="0,-18 3,-3 18,0 3,3 0,18 -3,3 -18,0 -3,-3" fill="#ffffff" />
+    <circle cx="0" cy="0" r="3" fill="#38bdf8" />
+  </g>
+
+  <!-- Glint 2 on edge -->
+  <g transform="translate(280, 220) scale(0.65)">
+    <polygon points="0,-16 3,-3 16,0 3,3 0,16 -3,3 -16,0 -3,-3" fill="#ffffff" />
+    <circle cx="0" cy="0" r="2.5" fill="#fef08a" />
+  </g>
+
+  <!-- Little magical sparkles -->
+  <circle cx="220" cy="180" r="3" fill="#67e8f9" opacity="0.8" />
+  <circle cx="295" cy="130" r="2.5" fill="#fef08a" opacity="0.8" />
+  <circle cx="210" cy="270" r="2" fill="#e0f2fe" opacity="0.7" />
 </svg>

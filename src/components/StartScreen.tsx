@@ -232,8 +232,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             className="w-full max-w-md mb-3 py-2.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border-2 border-amber-400/60 hover:border-amber-300 text-amber-200 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-between shadow-lg shadow-amber-950/30 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer select-none group"
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-xl bg-amber-500/30 border border-amber-400/60 flex items-center justify-center text-amber-300 group-hover:scale-110 transition-transform">
-                <Download className="w-4 h-4 animate-bounce" />
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/60 flex items-center justify-center p-0.5 group-hover:scale-110 transition-transform overflow-hidden shadow-inner">
+                <img src="/icon.svg" alt="Espada" className="w-full h-full object-contain drop-shadow" />
               </div>
               <div className="text-left">
                 <span className="block font-black text-amber-300 text-xs sm:text-sm tracking-wide">
