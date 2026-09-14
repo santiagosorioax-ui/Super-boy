@@ -17,7 +17,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   target,
   isWorldReady = true,
   onFinish,
-  minDurationMs = 1800,
+  minDurationMs = 450,
 }) => {
   const currentTarget: TransitionTarget = target ?? 'game_start';
 
@@ -92,14 +92,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         nextProgress = Math.min(85, Math.round(10 + timeRatio * 75));
       }
 
-      // Hard timeout fallback: after 4 seconds, force 100%
-      if (elapsed >= 4000) {
+      // Hard timeout fallback: after 1.5 seconds, force 100%
+      if (elapsed >= 1500) {
         nextProgress = 100;
       }
 
       setProgress(nextProgress);
 
-      if (elapsed > 400 || worldReady) {
+      if (elapsed > 150 || worldReady) {
         setCanSkip(true);
       }
 
@@ -108,9 +108,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         clearInterval(interval);
         setTimeout(() => {
           onFinishRef.current();
-        }, 150);
+        }, 80);
       }
-    }, 40);
+    }, 30);
 
     return () => clearInterval(interval);
   }, [isOpen, minDurationMs]);

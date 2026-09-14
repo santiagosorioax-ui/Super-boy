@@ -19,6 +19,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { LeaderboardModal } from './components/LeaderboardModal';
 import { VipProfileModal } from './components/VipProfileModal';
 import { WardrobeModal } from './components/WardrobeModal';
+import { InstallPromptModal } from './components/InstallPromptModal';
 import { DEFAULT_CUSTOMIZATION } from './data/clothingCatalog';
 import { PlayerCustomization } from './types';
 import { auth, googleProvider } from './firebase/config';
@@ -92,6 +93,62 @@ export default function App() {
   const [lastToast, setLastToast] = useState<string | null>(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [devicePlatform, setDevicePlatform] = useState<'ios' | 'android' | 'desktop'>('desktop');
+
+  // Listen for PWA beforeinstallprompt & appinstalled
+  useEffect(() => {
+    // Detect platform
+    const ua = window.navigator.userAgent.toLowerCase();
+    if (/iphone|ipad|ipod/.test(ua)) {
+      setDevicePlatform('ios');
+    } else if (/android/.test(ua)) {
+      setDevicePlatform('android');
+    } else {
+      setDevicePlatform('desktop');
+    }
+
+    // Check if already in standalone mode
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    if (isStandalone) {
+      setIsInstalled(true);
+    }
+
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+      showToast('🎉 ¡Super Boy 3D instalado exitosamente!');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = useCallback(async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult.outcome === 'accepted') {
+        setIsInstalled(true);
+        showToast('🚀 Instalando Super Boy 3D en tu pantalla...');
+      }
+      setDeferredPrompt(null);
+    } else {
+      setIsInstallModalOpen(true);
+    }
+  }, [deferredPrompt]);
 
   // Monitor browser fullscreen change events to update state
   useEffect(() => {
@@ -1219,6 +1276,8 @@ export default function App() {
           onOpenWardrobe={() => setIsWardrobeOpen(true)}
           isFullscreen={isFullscreen}
           onToggleFullscreen={handleToggleFullscreen}
+          onOpenInstall={handleInstallApp}
+          isInstalled={isInstalled}
         />
       )}
 
@@ -1283,6 +1342,8 @@ export default function App() {
           lastToast={lastToast}
           isFullscreen={isFullscreen}
           onToggleFullscreen={handleToggleFullscreen}
+          onOpenInstall={handleInstallApp}
+          isInstalled={isInstalled}
         />
       )}
 
@@ -1371,6 +1432,15 @@ export default function App() {
         coinsLost={coinsLostOnDeath}
         remainingCoins={Math.max(0, inventory.coins - coinsLostOnDeath)}
         onRetry={handleRetryRespawn}
+      />
+
+      {/* Install Prompt Modal for PWA (Mobile & Desktop) */}
+      <InstallPromptModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        onInstall={handleInstallApp}
+        canNativeInstall={Boolean(deferredPrompt)}
+        platform={devicePlatform}
       />
 
       {/* Cartoon Loading Screen for Game Start & World/Structure Transitions */}

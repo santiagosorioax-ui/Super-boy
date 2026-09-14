@@ -33,6 +33,7 @@ import {
   Wind,
   Maximize,
   Minimize,
+  Download,
   X
 } from 'lucide-react';
 import { TimeState, PlayerInventory, WorldDimension, MayanBossState, ControlDevice, WeatherState, WeatherType } from '../types';
@@ -99,6 +100,8 @@ interface HUDProps {
   lastToast: string | null;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  onOpenInstall?: () => void;
+  isInstalled?: boolean;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -160,6 +163,8 @@ export const HUD: React.FC<HUDProps> = ({
   lastToast,
   isFullscreen = false,
   onToggleFullscreen,
+  onOpenInstall,
+  isInstalled = false,
 }) => {
   const [hideFsBanner, setHideFsBanner] = useState(false);
   const getPeriodBadge = () => {
@@ -580,6 +585,26 @@ export const HUD: React.FC<HUDProps> = ({
           >
             <HelpCircle className="w-3 h-3" />
           </button>
+
+          {/* Download Full App PWA Button */}
+          {onOpenInstall && (
+            <button
+              id="hud-btn-download-pwa"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onOpenInstall();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenInstall();
+              }}
+              aria-label="Descargar Juego Completo"
+              title="Descargar e instalar el juego completo en Celular o PC (PWA)"
+              className="p-1 rounded-lg border border-amber-500/50 bg-amber-950/80 hover:bg-amber-900/90 text-amber-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
+            >
+              <Download className="w-3 h-3" />
+            </button>
+          )}
 
           <button
             id="hud-btn-settings"

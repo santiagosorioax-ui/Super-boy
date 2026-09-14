@@ -22,7 +22,9 @@ import {
   Crown,
   Shirt,
   Maximize,
-  Minimize
+  Minimize,
+  Download,
+  CheckCircle2
 } from 'lucide-react';
 import { GameSettings, ControlDevice } from '../types';
 import { User } from 'firebase/auth';
@@ -45,6 +47,8 @@ interface StartScreenProps {
   onSignOut?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  onOpenInstall?: () => void;
+  isInstalled?: boolean;
 }
 
 export const StartScreen: React.FC<StartScreenProps> = ({
@@ -65,6 +69,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   onSignOut,
   isFullscreen = false,
   onToggleFullscreen,
+  onOpenInstall,
+  isInstalled = false,
 }) => {
   return (
     <div 
@@ -217,6 +223,32 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             </span>
           </button>
         </div>
+
+        {/* Button to Download Full App (PWA) on Mobile or PC */}
+        {onOpenInstall && (
+          <button
+            id="btn-start-download-pwa"
+            onClick={onOpenInstall}
+            className="w-full max-w-md mb-3 py-2.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border-2 border-amber-400/60 hover:border-amber-300 text-amber-200 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-between shadow-lg shadow-amber-950/30 transition-all hover:scale-[1.01] active:scale-95 cursor-pointer select-none group"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-xl bg-amber-500/30 border border-amber-400/60 flex items-center justify-center text-amber-300 group-hover:scale-110 transition-transform">
+                <Download className="w-4 h-4 animate-bounce" />
+              </div>
+              <div className="text-left">
+                <span className="block font-black text-amber-300 text-xs sm:text-sm tracking-wide">
+                  {isInstalled ? '✅ Aplicación Instalada' : '📥 Descargar Aplicación Completa'}
+                </span>
+                <span className="block text-[10px] text-amber-200/70 font-normal">
+                  Instalar directamente en Celular o PC sin barra de navegador
+                </span>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-400/40">
+              PWA
+            </span>
+          </button>
+        )}
 
         {/* Fullscreen Button to Hide Chrome URL on Mobile */}
         {onToggleFullscreen && (
