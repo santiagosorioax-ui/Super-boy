@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Juego 3D de Santi - Versión Completa</title>
+<title>Super Boy 3D - Juego Completo de Santi</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Super Boy 3D">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0f1d">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <style>
 * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0f1d; font-family: system-ui, -apple-system, sans-serif; touch-action: none; }
@@ -135,6 +142,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0f1d; f
     <p>Has recolectado todas las monedas y gemas del mapa 3D de Santi.</p>
     <button class="btn-primary" onclick="location.reload()">JUGAR OTRA VEZ</button>
   </div>
+</div>
+
+<!-- Install App Banner -->
+<div id="pwa-banner" style="position:fixed; top:70px; left:50%; transform:translateX(-50%); z-index:999; background:linear-gradient(135deg, #10b981, #059669); color:#fff; padding:10px 20px; border-radius:30px; font-size:13px; font-weight:bold; box-shadow:0 6px 20px rgba(0,0,0,0.5); cursor:pointer; display:flex; align-items:center; gap:8px; border:2px solid #6ee7b7; text-align:center;">
+  <span>📲 INSTALAR JUEGO EN PANTALLA DE INICIO</span>
 </div>
 
 <canvas id="canvas3d"></canvas>
@@ -720,6 +732,40 @@ addEventListener("resize", () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
+
+// PWA Installer logic
+let deferredPromptStandalone = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPromptStandalone = e;
+  const b = document.getElementById('pwa-banner');
+  if (b) b.style.display = 'flex';
+});
+
+const bannerEl = document.getElementById('pwa-banner');
+if (bannerEl) {
+  bannerEl.addEventListener('click', async () => {
+    if (deferredPromptStandalone) {
+      deferredPromptStandalone.prompt();
+      const choice = await deferredPromptStandalone.userChoice;
+      if (choice.outcome === 'accepted') {
+        bannerEl.style.display = 'none';
+      }
+      deferredPromptStandalone = null;
+    } else {
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      if (isIOS) {
+        alert("Para instalar en iPhone/iPad:\n1. Toca el botón Compartir abajo en Safari.\n2. Toca 'Agregar a pantalla de inicio'.");
+      } else {
+        alert("Para instalar en tu dispositivo:\n1. Abre el menú de tres puntos (⋮) de tu navegador.\n2. Toca 'Instalar aplicación' o 'Agregar a la pantalla principal'.");
+      }
+    }
+  });
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>
