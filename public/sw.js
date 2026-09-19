@@ -1,5 +1,5 @@
 // Service Worker for Offline / PWA capabilities in Super Boy 3D
-const CACHE_NAME = 'superboy-pwa-v2';
+const CACHE_NAME = 'superboy-pwa-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -8,6 +8,9 @@ const STATIC_ASSETS = [
   '/icon-192.png',
   '/icon-512.png',
   '/apple-touch-icon.png',
+  '/favicon.png',
+  '/favicon.ico',
+  '/favicon-32x32.png',
 ];
 
 self.addEventListener('install', (event) => {
