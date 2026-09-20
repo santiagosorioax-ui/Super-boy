@@ -97,6 +97,8 @@ export function getSlidesForTarget(target?: TransitionTarget): CartoonSlide[] {
     initialIndex = 10; // Structure & Shop
   } else if (target === 'mayan_boss') {
     initialIndex = 2; // Mayan
+  } else if (target === 'choco_temple') {
+    initialIndex = 6; // Gummy Boss inside Templo Choco
   } else if (target === 'candy') {
     initialIndex = 3; // Candyland
   } else if (target === 'main') {

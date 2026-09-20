@@ -1,4 +1,4 @@
-export type WorldDimension = 'main' | 'candy' | 'mayan_boss';
+export type WorldDimension = 'main' | 'candy' | 'mayan_boss' | 'choco_temple';
 
 export interface MayanBossState {
   active: boolean;
@@ -26,7 +26,7 @@ export interface GameSettings {
   cycleSpeed: 'normal' | 'fast' | 'slow' | 'freeze_day' | 'freeze_night';
   showCompass: boolean;
   showFps: boolean;
-  graphicsQuality: 'low' | 'medium' | 'high';
+  graphicsQuality: 'low' | 'medium' | 'high' | 'ultra';
   viewMode: 'first_person' | 'third_person';
   controlMode?: ControlDevice;
 }

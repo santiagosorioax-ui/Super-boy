@@ -118,6 +118,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     if (progress >= 100) return '¡Listo para Jugar!';
     if (currentTarget === 'structure') return 'Cargando Estructura...';
     if (currentTarget === 'game_start') return 'Iniciando Super Boy 3D...';
+    if (currentTarget === 'choco_temple') return 'Cargando Templo Choco...';
     if (currentTarget === 'candy') return 'Cargando Mundo Caramelo...';
     if (currentTarget === 'mayan_boss') return 'Cargando Templo Maya...';
     return 'Cargando Mundo...';

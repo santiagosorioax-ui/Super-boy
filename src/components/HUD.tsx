@@ -329,10 +329,18 @@ export const HUD: React.FC<HUDProps> = ({
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black tracking-wider uppercase backdrop-blur-md border shadow-lg ${
                 currentDimension === 'mayan_boss'
                   ? 'bg-emerald-950/90 border-emerald-500/70 text-emerald-300'
+                  : currentDimension === 'choco_temple'
+                  ? 'bg-amber-950/90 border-amber-500/70 text-amber-300'
                   : 'bg-pink-950/90 border-pink-500/70 text-pink-300'
               }`}
             >
-              <span>{currentDimension === 'mayan_boss' ? '🏛️ Templo Maya' : '🍭 Mundo Caramelo'}</span>
+              <span>
+                {currentDimension === 'mayan_boss'
+                  ? '🏛️ Templo Maya'
+                  : currentDimension === 'choco_temple'
+                  ? '🍫 Templo Choco'
+                  : '🍭 Mundo Caramelo'}
+              </span>
             </div>
           )}
         </div>
@@ -725,13 +733,20 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       )}
 
-      {/* 1.1 MAYAN BOSS HEALTH BAR & STATUS */}
-      {currentDimension === 'mayan_boss' && bossState && (() => {
+      {/* 1.1 MAYAN OR CHOCO TEMPLE BOSS HEALTH BAR & STATUS */}
+      {(currentDimension === 'mayan_boss' || currentDimension === 'choco_temple') && bossState && bossState.active && (() => {
         const isTired = Boolean(bossState.isTired ?? (bossState.phase === 'tired'));
+        const isChoco = currentDimension === 'choco_temple';
+        const bossTitle = isChoco ? 'Gran Oso Gomita' : 'Rey Zombi Maya';
+        const bossIcon = isChoco ? '🐻👑' : '🧟👑';
+        const defaultStatus = isChoco
+          ? (isTired ? '¡DERRETIDO! (¡GOLPÉALO YA!)' : 'ESCUDO GOMITA (INVULNERABLE)')
+          : (isTired ? '¡CANSADO! (ATÁCALO)' : 'INVULNERABLE (ESQUIVA)');
+
         const statusMsg = bossState.statusMessage ?? (
           bossState.phase === 'defeated' ? '¡DERROTADO!' :
-          isTired ? '¡CANSADO! (ATÁCALO)' :
-          bossState.phase === 'intro' ? '¡EL REY DESPIERTA!' : 'INVULNERABLE (ESQUIVA)'
+          isTired ? (isChoco ? '¡DERRETIDO! (¡ATACA!)' : '¡CANSADO! (ATÁCALO)') :
+          bossState.phase === 'intro' ? (isChoco ? '¡EL OSO DESPIERTA!' : '¡EL REY DESPIERTA!') : defaultStatus
         );
 
         return (
@@ -739,12 +754,14 @@ export const HUD: React.FC<HUDProps> = ({
             <div className={`w-full backdrop-blur-md border-2 rounded-2xl p-2.5 shadow-2xl flex flex-col gap-1.5 transition-all ${
               isTired
                 ? 'bg-amber-950/90 border-amber-400/80 ring-2 ring-amber-400/40'
+                : isChoco
+                ? 'bg-rose-950/90 border-rose-500/60'
                 : 'bg-slate-950/90 border-emerald-500/60'
             }`}>
               <div className="flex items-center justify-between text-xs font-black">
-                <div className="flex items-center gap-1.5 text-emerald-400">
-                  <span className="text-sm">🧟👑</span>
-                  <span>Rey Zombi Maya</span>
+                <div className={`flex items-center gap-1.5 ${isChoco ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  <span className="text-sm">{bossIcon}</span>
+                  <span>{bossTitle}</span>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-bold ${
                   isTired 
@@ -762,12 +779,14 @@ export const HUD: React.FC<HUDProps> = ({
                   className={`h-full transition-all duration-300 rounded-full ${
                     isTired
                       ? 'bg-gradient-to-r from-amber-400 to-yellow-300 animate-pulse'
+                      : isChoco
+                      ? 'bg-gradient-to-r from-rose-600 via-pink-500 to-amber-500'
                       : 'bg-gradient-to-r from-rose-600 via-red-500 to-emerald-500'
                   }`}
                   style={{ width: `${Math.max(0, Math.min(100, (bossState.health / bossState.maxHealth) * 100))}%` }}
                 />
                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white drop-shadow-md">
-                  {bossState.health} / {bossState.maxHealth} HP {isTired ? '— ¡ATÁCALO AHORA!' : ''}
+                  {bossState.health} / {bossState.maxHealth} HP {isTired ? (isChoco ? '— ¡DERRETIDO! ¡GOLPÉALO!' : '— ¡ATÁCALO AHORA!') : ''}
                 </span>
               </div>
             </div>

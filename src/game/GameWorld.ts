@@ -3,6 +3,7 @@ import { CoinData, GameSettings, MayanBossState, PlayerCustomization, TimeState,
 import { soundEngine } from '../audio/soundEngine';
 import { ZombieSystem } from './ZombieSystem';
 import { CandyWorldBuilder, CandyWorldElements } from './CandyWorldBuilder';
+import { ChocoTempleBuilder, ChocoTempleElements } from './ChocoTempleBuilder';
 import { MayanBossSystem } from './MayanBossSystem';
 import { GummyBossSystem } from './GummyBossSystem';
 import { GummyCitizenManager } from './GummyCitizenManager';
@@ -10,6 +11,9 @@ import { MayanTempleBuilder, MayanTempleElements } from './MayanTempleBuilder';
 import { WeatherSystem } from './WeatherSystem';
 import { createCustomAvatar, AvatarInstance, AvatarLimbs } from './AvatarCustomizer';
 import { ValleyStructuresBuilder, ValleyStructuresResult } from './ValleyStructuresBuilder';
+import { TextureSynthesizer } from './TextureSynthesizer';
+import { ScenicRiverBuilder, ScenicRiverResult } from './ScenicRiverBuilder';
+import { AtmosphericEffects, AtmosphericEffectsResult } from './AtmosphericEffects';
 
 export interface WorldCallbacks {
   onCoinCollected: (coin: CoinData, remaining: number, total: number, combo: number) => void;
@@ -52,10 +56,14 @@ export class GameWorld {
   private weatherSystem: WeatherSystem;
 
   // Performance & Quality
-  private graphicsQuality: 'low' | 'medium' | 'high' = 'medium';
+  private graphicsQuality: 'low' | 'medium' | 'high' | 'ultra' = 'medium';
   private frameCount = 0;
   private lastFpsTime = 0;
   private isMobileDevice = false;
+
+  // Scenic River & Atmospheric Effects
+  private scenicRiver: ScenicRiverResult | null = null;
+  private atmosphericEffects: AtmosphericEffectsResult | null = null;
 
   // Lighting & Sky
   private hemiLight: THREE.HemisphereLight;
@@ -234,6 +242,7 @@ export class GameWorld {
   // Zombies & Candy World
   private zombieSystem: ZombieSystem | null = null;
   private candyWorldElements: CandyWorldElements | null = null;
+  private chocoTempleElements: ChocoTempleElements | null = null;
   private currentWorld: WorldDimension = 'main';
   private portalCooldownTimer = 0;
 
@@ -251,7 +260,7 @@ export class GameWorld {
     // Detect mobile device
     this.isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
       (typeof window !== 'undefined' && window.innerWidth < 768);
-    this.graphicsQuality = this.isMobileDevice ? 'medium' : 'high';
+    this.graphicsQuality = this.isMobileDevice ? 'medium' : 'ultra';
 
     // 1. Scene & Camera (Expansive 100° Field of View & 550m draw distance)
     this.scene = new THREE.Scene();
@@ -267,10 +276,11 @@ export class GameWorld {
       precision: this.isMobileDevice ? 'mediump' : 'highp'
     });
     this.renderer.setSize(width, height);
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.applyPixelRatio();
     this.setupShadows();
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.08;
     container.appendChild(this.renderer.domElement);
 
     this.clock = new THREE.Clock();
@@ -280,33 +290,38 @@ export class GameWorld {
     this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0038);
 
     // 3. Lighting Setup
-    this.hemiLight = new THREE.HemisphereLight(0xffffff, 0x445566, 1.2);
+    this.hemiLight = new THREE.HemisphereLight(0xffffff, 0x445566, 1.25);
     this.scene.add(this.hemiLight);
 
-    const shadowRes = this.isMobileDevice ? 512 : 1024;
-    this.sunLight = new THREE.DirectionalLight(0xfffaed, 2.0);
+    const shadowRes = this.isMobileDevice ? 512 : (this.graphicsQuality === 'ultra' ? 2048 : 1024);
+    this.sunLight = new THREE.DirectionalLight(0xfffaed, 2.1);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.width = shadowRes;
     this.sunLight.shadow.mapSize.height = shadowRes;
     this.sunLight.shadow.camera.near = 0.5;
     this.sunLight.shadow.camera.far = 240;
-    const shadowD = 80;
+    const shadowD = 55; // Focused frustum around player for razor-sharp shadow clarity
     this.sunLight.shadow.camera.left = -shadowD;
     this.sunLight.shadow.camera.right = shadowD;
     this.sunLight.shadow.camera.top = shadowD;
     this.sunLight.shadow.camera.bottom = -shadowD;
-    this.sunLight.shadow.bias = -0.0008;
+    this.sunLight.shadow.bias = -0.0004;
+    this.sunLight.shadow.normalBias = 0.038;
     this.scene.add(this.sunLight);
+    this.scene.add(this.sunLight.target);
 
-    this.moonLight = new THREE.DirectionalLight(0x88aaff, 0.6);
-    this.moonLight.castShadow = false; // Mobile optimization: only sun casts shadows
+    this.moonLight = new THREE.DirectionalLight(0x88aaff, 0.65);
+    this.moonLight.castShadow = false; // Mobile & performance optimization: only primary sun casts shadows
     this.scene.add(this.moonLight);
 
     // Sun and Moon visual meshes
-    const sunGeom = new THREE.SphereGeometry(3.5, 12, 12);
+    const sunGeom = new THREE.SphereGeometry(3.5, 16, 16);
     const sunMat = new THREE.MeshBasicMaterial({ color: 0xffea78 });
     this.sunMesh = new THREE.Mesh(sunGeom, sunMat);
     this.scene.add(this.sunMesh);
+
+    // Atmospheric Celestial Sun Flare & Glow
+    this.atmosphericEffects = AtmosphericEffects.create(this.scene);
 
     const moonGeom = new THREE.SphereGeometry(2.8, 12, 12);
     const moonMat = new THREE.MeshBasicMaterial({ color: 0xddedff });
@@ -373,8 +388,11 @@ export class GameWorld {
       this.renderer.setPixelRatio(1.0);
     } else if (this.graphicsQuality === 'medium') {
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    } else if (this.graphicsQuality === 'high') {
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
     } else {
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+      // Ultra: Maximum crispness capped at 1.85 to avoid fill-rate lag on high-DPI displays
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
     }
   }
 
@@ -383,19 +401,29 @@ export class GameWorld {
       this.renderer.shadowMap.enabled = false;
     } else {
       this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = this.graphicsQuality === 'high' ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+      this.renderer.shadowMap.type = (this.graphicsQuality === 'high' || this.graphicsQuality === 'ultra')
+        ? THREE.PCFSoftShadowMap
+        : THREE.BasicShadowMap;
     }
   }
 
-  public setGraphicsQuality(quality: 'low' | 'medium' | 'high') {
+  public setGraphicsQuality(quality: 'low' | 'medium' | 'high' | 'ultra') {
     this.graphicsQuality = quality;
     this.applyPixelRatio();
     this.setupShadows();
     if (this.sunLight) {
       this.sunLight.castShadow = quality !== 'low';
-      const shadowRes = quality === 'low' ? 256 : quality === 'medium' ? 512 : 1024;
+      const shadowRes = quality === 'low'
+        ? 256
+        : quality === 'medium'
+          ? 512
+          : quality === 'high'
+            ? 1024
+            : (this.isMobileDevice ? 1024 : 2048);
       this.sunLight.shadow.mapSize.width = shadowRes;
       this.sunLight.shadow.mapSize.height = shadowRes;
+      this.sunLight.shadow.normalBias = quality === 'low' ? 0 : 0.038;
+      this.sunLight.shadow.bias = -0.0004;
       if (this.sunLight.shadow.map) {
         this.sunLight.shadow.map.dispose();
         (this.sunLight.shadow as unknown as { map: THREE.WebGLRenderTarget | null }).map = null;
@@ -498,7 +526,10 @@ export class GameWorld {
   }
 
   public getTerrainHeight(x: number, z: number): number {
-    if (this.currentWorld === 'candy' || Math.hypot(x - 600, z - 600) < 140) {
+    if (this.currentWorld === 'choco_temple' || Math.hypot(x - 1400, z - 1400) < 60) {
+      return 0.4;
+    }
+    if (this.currentWorld === 'candy' || Math.hypot(x - 600, z - 600) < 165) {
       return 0.4;
     }
     if (this.currentWorld === 'mayan_boss' || Math.hypot(x - (-700), z - (-700)) < 90) {
@@ -534,8 +565,8 @@ export class GameWorld {
 
   // --- WORLD BUILDER ---
   private buildWorld() {
-    // 1. Terrain Ground (Expanded 480x480 grand valley with smooth rolling contours)
-    const groundGeom = new THREE.PlaneGeometry(480, 480, 56, 56);
+    // 1. Terrain Ground (Expanded 480x480 grand valley with smooth rolling contours & PBR Grass)
+    const groundGeom = new THREE.PlaneGeometry(480, 480, 72, 72);
     const posAttr = groundGeom.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
       const x = posAttr.getX(i);
@@ -547,11 +578,17 @@ export class GameWorld {
     }
     groundGeom.computeVertexNormals();
 
+    const grassTex = TextureSynthesizer.getGrassTexture();
+    const grassNorm = TextureSynthesizer.getGrassNormal();
+
     const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x3e8a3a,
-      roughness: 0.85,
-      metalness: 0.05,
-      flatShading: true,
+      color: 0x42933e,
+      roughness: 0.82,
+      metalness: 0.04,
+      map: grassTex,
+      normalMap: grassNorm,
+      normalScale: new THREE.Vector2(0.35, 0.35),
+      flatShading: false,
     });
     const ground = new THREE.Mesh(groundGeom, groundMat);
     ground.rotation.x = -Math.PI / 2;
@@ -630,6 +667,12 @@ export class GameWorld {
     this.coins.push(...this.valleyStructures.coins);
     this.lanterns.push(...this.valleyStructures.lanterns);
 
+    // 5.2 Scenic Mountain River & Lotus Pond (Specularity + Flowing Ripples)
+    this.scenicRiver = ScenicRiverBuilder.build(
+      this.scene,
+      (x, z) => this.getTerrainHeight(x, z)
+    );
+
     // 6. Build Candy World and Portals
     this.candyWorldElements = CandyWorldBuilder.build(
       this.scene,
@@ -645,10 +688,15 @@ export class GameWorld {
     this.buildShopBuilding(608.0, 0.4, 588.0, 'candy');
     this.buildMultiplierShopBuilding(592.0, 0.4, 588.0, 'candy');
 
-    // 6.2 Gummy Boss System inside Chocolate Castle & Gummy Citizens in Candy World
+    // 6.2 Build Templo Choco (Separate World Dimension)
+    this.chocoTempleElements = ChocoTempleBuilder.build(this.scene);
+    this.colliders.push(...this.chocoTempleElements.colliders);
+    this.platforms.push(...this.chocoTempleElements.platforms);
+
+    // 6.3 Gummy Boss System inside Templo Choco & Gummy Citizens in Candy World
     this.gummyBossSystem = new GummyBossSystem(
       this.scene,
-      this.candyWorldElements.castleArenaCenter,
+      this.chocoTempleElements.arenaCenter,
       {
         onBossStateUpdate: (state) => this.callbacks.onBossStateUpdate?.(state),
         onPlayerDamage: (amount, msg) => {
@@ -708,7 +756,7 @@ export class GameWorld {
     // Add summit rock formations on prominent mounds, firmly anchored to the sculpted terrain
     this.mounds.forEach((mound, idx) => {
       // Exclude rock near Candy Portal (portal is located at x: 18, z: -18)
-      if (Math.hypot(mound.x - 18, mound.z - (-18)) < 14) {
+      if (Math.hypot(mound.x - 18, mound.z - (-18)) < 24) {
         return;
       }
 
@@ -760,9 +808,15 @@ export class GameWorld {
   }
 
   private buildPlaza() {
-    // Stone circular courtyard
-    const plazaGeom = new THREE.CylinderGeometry(8, 8.5, 0.4, 16);
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6 });
+    // Stone circular courtyard with PBR Cobblestone relief
+    const plazaGeom = new THREE.CylinderGeometry(8, 8.5, 0.4, 28);
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: 0xa0aec0,
+      roughness: 0.65,
+      map: TextureSynthesizer.getCobblestoneTexture(),
+      normalMap: TextureSynthesizer.getCobblestoneNormal(),
+      normalScale: new THREE.Vector2(0.45, 0.45),
+    });
     const plaza = new THREE.Mesh(plazaGeom, stoneMat);
     plaza.position.set(0, 0.2, 0);
     plaza.receiveShadow = true;
@@ -771,7 +825,13 @@ export class GameWorld {
 
     // 4 Stone Pillars surrounding courtyard
     const pillarGeom = new THREE.BoxGeometry(1.2, 4.5, 1.2);
-    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.5 });
+    const pillarMat = new THREE.MeshStandardMaterial({
+      color: 0x64748b,
+      roughness: 0.72,
+      map: TextureSynthesizer.getRockTexture(),
+      normalMap: TextureSynthesizer.getRockNormal(),
+      normalScale: new THREE.Vector2(0.4, 0.4),
+    });
 
     const pillarCoords = [
       { x: -5, z: -5 },
@@ -1673,10 +1733,21 @@ export class GameWorld {
   }
 
   private buildFoliage() {
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9 });
-    const foliageMat1 = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.8, flatShading: true });
-    const foliageMat2 = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.8, flatShading: true });
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.7, flatShading: true });
+    const trunkMat = new THREE.MeshStandardMaterial({
+      color: 0x5c3a21,
+      roughness: 0.88,
+      map: TextureSynthesizer.getWoodBarkTexture(),
+    });
+    const foliageMat1 = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.72, flatShading: true });
+    const foliageMat2 = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.72, flatShading: true });
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: 0x64748b,
+      roughness: 0.72,
+      map: TextureSynthesizer.getRockTexture(),
+      normalMap: TextureSynthesizer.getRockNormal(),
+      normalScale: new THREE.Vector2(0.4, 0.4),
+      flatShading: true,
+    });
 
     // Shared geometries to save memory and draw overhead on mobile
     const trunkGeom = new THREE.CylinderGeometry(0.35, 0.45, 3.0, 6);
@@ -1690,7 +1761,7 @@ export class GameWorld {
     const occupiedZones: { x: number; z: number; radius: number }[] = [
       { x: 0, z: 0, radius: 12 }, // Central Plaza
       { x: 6.5, z: 2.0, radius: 6 }, // Shop & Merchant
-      { x: 18, z: -18, radius: 10 }, // Candy World Portal clearance (no trees or procedural rocks)
+      { x: 18, z: -18, radius: 24 }, // Candy World Portal clearance (no rocks, trees, or mounds)
       // Trampolines
       { x: 0, z: -12, radius: 4 },
       { x: 24, z: 18, radius: 4 },
@@ -2007,17 +2078,37 @@ export class GameWorld {
     const t = this.timeOfDay;
     // Calculate Sun Angle: 6:00 is sunrise (0 rad), 12:00 is noon (pi/2), 18:00 is sunset (pi), 0:00 is midnight (-pi/2)
     const sunAngle = ((t - 6) / 24) * Math.PI * 2;
-    const sunDist = 120;
+    const sunDist = 110;
     const sunX = Math.cos(sunAngle) * sunDist;
     const sunY = Math.sin(sunAngle) * sunDist;
     const sunZ = 20;
 
-    this.sunLight.position.set(sunX, sunY, sunZ);
-    this.sunMesh.position.set(sunX, sunY, sunZ);
+    // Follow player position so shadow map resolution is always 100% focused around player
+    if (this.sunLight && this.sunLight.target) {
+      this.sunLight.target.position.set(this.playerPos.x, this.playerPos.y, this.playerPos.z);
+    }
+    this.sunLight.position.set(
+      this.playerPos.x + sunX,
+      this.playerPos.y + sunY,
+      this.playerPos.z + sunZ
+    );
+    this.sunMesh.position.set(
+      this.playerPos.x + sunX * 1.6,
+      this.playerPos.y + sunY * 1.6,
+      this.playerPos.z + sunZ * 1.6
+    );
 
     // Moon is opposite to sun
-    this.moonLight.position.set(-sunX, -sunY, -sunZ);
-    this.moonMesh.position.set(-sunX, -sunY, -sunZ);
+    this.moonLight.position.set(
+      this.playerPos.x - sunX,
+      this.playerPos.y - sunY,
+      this.playerPos.z - sunZ
+    );
+    this.moonMesh.position.set(
+      this.playerPos.x - sunX * 1.6,
+      this.playerPos.y - sunY * 1.6,
+      this.playerPos.z - sunZ * 1.6
+    );
 
     // Determine Period
     let period: TimeState['period'] = 'day';
@@ -2619,8 +2710,9 @@ export class GameWorld {
 
     if (this.currentWorld === 'mayan_boss') {
       this.mayanBossSystem?.checkSwordHit(this.playerPos, lookDir, damage);
-    } else if (this.currentWorld === 'candy') {
+    } else if (this.currentWorld === 'choco_temple') {
       this.gummyBossSystem?.checkSwordHit(this.playerPos, lookDir, damage);
+    } else if (this.currentWorld === 'candy') {
       this.zombieSystem?.checkSwordHit(this.playerPos, lookDir, damage, this.currentWorld);
     } else {
       this.zombieSystem?.checkSwordHit(this.playerPos, lookDir, damage, this.currentWorld);
@@ -2708,6 +2800,8 @@ export class GameWorld {
   public teleportTo(dest: 'spawn' | 'shop' | 'multiplier_shop' | 'candy_portal' | 'mayan_temple' | 'boss_arena' | string) {
     if (dest === 'candy_portal' || dest === 'candy') {
       this.teleportToWorld('candy');
+    } else if (dest === 'choco_temple' || dest === 'gummy_boss') {
+      this.teleportToWorld('choco_temple');
     } else if (dest === 'boss_arena' || dest === 'mayan_boss' || dest === 'mayan_temple') {
       this.teleportToWorld('mayan_boss');
     } else if (dest === 'shop') {
@@ -3150,11 +3244,15 @@ export class GameWorld {
         }
       } else if (this.currentWorld === 'candy') {
         const distFromCandy = Math.hypot(this.playerPos.x - 600, this.playerPos.z - 600);
-        if (distFromCandy > 105) {
+        if (distFromCandy > 152) {
           const angle = Math.atan2(this.playerPos.z - 600, this.playerPos.x - 600);
-          this.playerPos.x = 600 + Math.cos(angle) * 105;
-          this.playerPos.z = 600 + Math.sin(angle) * 105;
+          this.playerPos.x = 600 + Math.cos(angle) * 152;
+          this.playerPos.z = 600 + Math.sin(angle) * 152;
         }
+      } else if (this.currentWorld === 'choco_temple') {
+        // Enforce Templo Choco Arena boundaries (1400, 1400, size 38x38)
+        this.playerPos.x = Math.max(1400 - 18, Math.min(1400 + 18, this.playerPos.x));
+        this.playerPos.z = Math.max(1400 - 18, Math.min(1400 + 18, this.playerPos.z));
       } else if (this.currentWorld === 'mayan_boss') {
         // Enforce Mayan Temple Interior Hall boundaries (-700, -700)
         // Hall is 58m wide (X: -729 to -671), 96m long (Z: -748 to -652)
@@ -3290,6 +3388,7 @@ export class GameWorld {
 
     // 11. Portal Energy Rings & Teleportation (Gateway to Candy World)
     if (this.candyWorldElements) {
+      this.candyWorldElements.update(dt, time);
       this.candyWorldElements.mainPortal.ring.rotation.z += 2.2 * dt;
       this.candyWorldElements.candyPortal.ring.rotation.z += 2.2 * dt;
 
@@ -3314,12 +3413,22 @@ export class GameWorld {
             this.isNearCandyPortal = false;
             this.callbacks.onNearCandyPortal?.(false);
           }
+          // Return to Main Valley Portal
           const horizDist = Math.hypot(
             this.playerPos.x - this.candyWorldElements.candyPortal.pos.x,
             this.playerPos.z - this.candyWorldElements.candyPortal.pos.z
           );
           if (horizDist < 3.6 && Math.abs(this.playerPos.y - this.candyWorldElements.candyPortal.pos.y) < 5.0) {
             this.teleportToWorld('main');
+          }
+
+          // Walk-in to Templo Choco Portal
+          const distToChoco = Math.hypot(
+            this.playerPos.x - this.candyWorldElements.chocoPortal.pos.x,
+            this.playerPos.z - this.candyWorldElements.chocoPortal.pos.z
+          );
+          if (distToChoco < 3.6 && Math.abs(this.playerPos.y - this.candyWorldElements.chocoPortal.pos.y) < 5.0) {
+            this.teleportToWorld('choco_temple');
           }
         } else {
           if (this.isNearCandyPortal) {
@@ -3371,23 +3480,47 @@ export class GameWorld {
       }
     }
 
-    // 11.2.2 Gummy Boss System & Gummy Citizens in Candy World
+    // 11.2.2 Gummy Citizens in Candy World
     if (this.currentWorld === 'candy') {
+      if (this.gummyCitizenManager) {
+        this.gummyCitizenManager.update(dt, this.playerPos, this.currentWorld);
+      }
+    }
+
+    // 11.2.3 Templo Choco Arena Loop & Return Portal (Gummy Boss Arena)
+    if (this.chocoTempleElements && this.currentWorld === 'choco_temple') {
+      this.chocoTempleElements.update(dt, time);
       if (this.gummyBossSystem) {
         this.gummyBossSystem.update(dt, this.playerPos, this.currentWorld);
       }
-      if (this.gummyCitizenManager) {
-        this.gummyCitizenManager.update(dt, this.playerPos, this.currentWorld);
+
+      // Check exit portal from Templo Choco back to Candy World
+      if (this.portalCooldownTimer > 0) {
+        this.portalCooldownTimer -= dt;
+      } else {
+        const exitPos = this.chocoTempleElements.returnPortalPos;
+        const distToExit = Math.hypot(this.playerPos.x - exitPos.x, this.playerPos.z - exitPos.z);
+        if (distToExit < 3.2 && Math.abs(this.playerPos.y - exitPos.y) < 4.0) {
+          this.teleportToWorld('candy');
+        }
       }
     }
 
     // 11.3 Valley Structures & Campfires
     this.valleyStructures?.update(dt, time);
 
-    // Campfire Safe Zone Proximity Check
+    // Campfire Safe Zone Proximity Check (Valley + Candy World Sweet Campfires)
     let currentNearCampfire = false;
     if (this.currentWorld === 'main' && this.valleyStructures) {
       for (const cf of this.valleyStructures.campfires) {
+        const dist = Math.hypot(this.playerPos.x - cf.pos.x, this.playerPos.z - cf.pos.z);
+        if (dist <= cf.safeRadius) {
+          currentNearCampfire = true;
+          break;
+        }
+      }
+    } else if (this.currentWorld === 'candy' && this.candyWorldElements) {
+      for (const cf of this.candyWorldElements.campfires) {
         const dist = Math.hypot(this.playerPos.x - cf.pos.x, this.playerPos.z - cf.pos.z);
         if (dist <= cf.safeRadius) {
           currentNearCampfire = true;
@@ -3480,6 +3613,16 @@ export class GameWorld {
     // 16. Position Camera & Avatar
     this.updateCameraAndAvatar(dt, horizontalSpeed);
 
+    // 16.1 Update Realistic Scenic River Ripple Flow
+    if (this.currentWorld === 'main' && this.scenicRiver) {
+      this.scenicRiver.update(dt, this.clock.getElapsedTime());
+    }
+
+    // 16.2 Update Celestial Sun Corona & Optical Glare
+    if (this.currentWorld === 'main' && this.atmosphericEffects) {
+      this.atmosphericEffects.update(this.camera, this.sunMesh.position, this.currentPeriod === 'night');
+    }
+
     // 17. Render Frame
     this.renderer.render(this.scene, this.camera);
 
@@ -3507,6 +3650,14 @@ export class GameWorld {
     soundEngine.playPortalTeleportSound();
     this.triggerHaptic([30, 60, 40, 80]);
 
+    if (this.scenicRiver) {
+      this.scenicRiver.group.visible = target === 'main';
+    }
+    if (this.atmosphericEffects && target !== 'main') {
+      this.atmosphericEffects.sunGlowSprite.visible = false;
+      this.atmosphericEffects.sunCoronaMesh.visible = false;
+    }
+
     if (target === 'mayan_boss') {
       const spawnPos = this.mayanBossSystem
         ? this.mayanBossSystem.getSpawnPos()
@@ -3530,10 +3681,39 @@ export class GameWorld {
       this.mayanBossSystem?.resetBoss();
       this.callbacks.onWorldChange?.('mayan_boss');
       this.spawnSlashParticles(this.playerPos.clone(), 0x10b981, 45);
-    } else if (target === 'candy') {
-      this.playerPos.set(600, 1.2, 608);
+    } else if (target === 'choco_temple') {
+      const spawnPos = this.chocoTempleElements
+        ? this.chocoTempleElements.returnPortalPos.clone().add(new THREE.Vector3(0, 1.2, -4.0))
+        : new THREE.Vector3(1400, 1.2, 1414);
+      this.playerPos.copy(spawnPos);
       this.playerVel.set(0, 0, 0);
-      this.yaw = Math.PI; // Face towards candy forest
+      this.yaw = 0; // Face forward towards the grand cocoa altar
+      this.pitch = 0;
+      this.isOnGround = true;
+
+      // Dark Chocolate & Molten Caramel ambient atmosphere
+      this.scene.background = new THREE.Color(0x1a0c06);
+      this.scene.fog = new THREE.FogExp2(0x1a0c06, 0.007);
+      this.sunLight.color.setHex(0xf59e0b);
+      this.sunLight.intensity = 0.55;
+      this.hemiLight.color.setHex(0xfbbf24);
+      this.hemiLight.groundColor.setHex(0x3e1d11);
+      this.hemiLight.intensity = 0.75;
+      this.sunMesh.material = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+
+      this.gummyBossSystem?.resetBoss();
+      this.callbacks.onWorldChange?.('choco_temple');
+      this.spawnSlashParticles(this.playerPos.clone(), 0xf59e0b, 45);
+    } else if (target === 'candy') {
+      if (prevWorld === 'choco_temple' && this.candyWorldElements) {
+        // Return from Templo Choco back in front of the Choco Temple portal in Candy World
+        this.playerPos.copy(this.candyWorldElements.chocoPortal.pos).add(new THREE.Vector3(0, 0.2, 4.2));
+        this.yaw = 0;
+      } else {
+        this.playerPos.set(600, 1.2, 608);
+        this.yaw = Math.PI; // Face towards candy forest
+      }
+      this.playerVel.set(0, 0, 0);
       this.pitch = 0;
       this.isOnGround = true;
 
@@ -3547,7 +3727,15 @@ export class GameWorld {
       this.hemiLight.intensity = 1.2;
       this.sunMesh.material = new THREE.MeshBasicMaterial({ color: 0xfde047 });
 
-      this.gummyBossSystem?.resetBoss();
+      // Gummy Boss is housed in Templo Choco, turn off boss state bar in open Candy World
+      this.callbacks.onBossStateUpdate?.({
+        active: false,
+        health: 0,
+        maxHealth: 1000,
+        phase: 'intro',
+        tiredTimeRemaining: 0,
+        isInvulnerable: false,
+      });
       this.callbacks.onWorldChange?.('candy');
       this.spawnSlashParticles(this.playerPos.clone(), 0xf43f5e, 45);
     } else {
@@ -3564,7 +3752,7 @@ export class GameWorld {
         // Place player safely outside the temple portal at the pyramid summit facing down the stairs
         this.playerPos.copy(this.mayanTempleElements.portalPos).add(new THREE.Vector3(0, 0, 4.5));
         this.yaw = 0;
-      } else if (prevWorld === 'candy' && this.candyWorldElements) {
+      } else if ((prevWorld === 'candy' || prevWorld === 'choco_temple') && this.candyWorldElements) {
         // Place player safely in front of the Candy World portal in the main valley
         this.playerPos.copy(this.candyWorldElements.mainPortal.pos).add(new THREE.Vector3(0, 0.2, 4.2));
         this.yaw = 0;

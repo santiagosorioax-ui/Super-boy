@@ -881,18 +881,24 @@ export default function App() {
           title:
             newWorld === 'candy'
               ? '🍭 VIAJANDO AL MUNDO CARAMELO (10s)'
+              : newWorld === 'choco_temple'
+              ? '🍫 ENTRANDO AL TEMPLO CHOCO (10s)'
               : newWorld === 'mayan_boss'
               ? '🏛️ ENTRANDO AL TEMPLO MAYA (10s)'
               : '🌿 REGRESANDO AL VALLE PRINCIPAL (10s)',
           subtitle:
             newWorld === 'candy'
-              ? 'Cargando Castillo de Chocolate y nubes de azúcar...'
+              ? 'Cargando islas flotantes de caramelo y fogatas dulces...'
+              : newWorld === 'choco_temple'
+              ? 'Cargando Arena de Chocolate y Despertando al Gran Oso Gomita...'
               : newWorld === 'mayan_boss'
               ? 'Cargando la Cripta Maya y Altar del Rey Zombi...'
               : 'Cargando el valle principal, aldea y colinas...',
           onComplete: () => {
             if (newWorld === 'candy') {
               showToast('🍭 ¡Bienvenido al Mundo de Caramelo!');
+            } else if (newWorld === 'choco_temple') {
+              showToast('🍫 ¡Entraste al Templo Choco! ¡Vence al Gran Oso Gomita!');
             } else if (newWorld === 'mayan_boss') {
               showToast('🏛️ ¡Entraste a la Cripta Maya! ¡Derrota al Rey Zombi!');
             } else {

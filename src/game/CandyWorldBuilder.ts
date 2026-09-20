@@ -1,5 +1,14 @@
 import * as THREE from 'three';
 import { CoinData } from '../types';
+import { TextureSynthesizer } from './TextureSynthesizer';
+
+export interface SweetCampfireInstance {
+  pos: THREE.Vector3;
+  safeRadius: number;
+  light: THREE.PointLight;
+  flameMeshes: THREE.Mesh[];
+  emberMesh: THREE.Mesh;
+}
 
 export interface CandyWorldElements {
   group: THREE.Group;
@@ -9,7 +18,10 @@ export interface CandyWorldElements {
   coins: { data: CoinData; mesh: THREE.Group; light: THREE.PointLight | null }[];
   mainPortal: { pos: THREE.Vector3; mesh: THREE.Group; ring: THREE.Mesh };
   candyPortal: { pos: THREE.Vector3; mesh: THREE.Group; ring: THREE.Mesh };
+  chocoPortal: { pos: THREE.Vector3; mesh: THREE.Group; ring: THREE.Mesh };
   castleArenaCenter: THREE.Vector3;
+  campfires: SweetCampfireInstance[];
+  update: (dt: number, time: number) => void;
 }
 
 export class CandyWorldBuilder {
@@ -28,10 +40,14 @@ export class CandyWorldBuilder {
     const originZ = 600;
 
     // --- MATERIALS ---
+    const glazeNormal = TextureSynthesizer.getCandyGlazeNormal();
+
     const frostingMat = new THREE.MeshStandardMaterial({
       color: 0xf472b6, // Strawberry icing pink
-      roughness: 0.6,
+      roughness: 0.55,
       metalness: 0.05,
+      normalMap: glazeNormal,
+      normalScale: new THREE.Vector2(0.25, 0.25),
     });
     const biscuitMat = new THREE.MeshStandardMaterial({
       color: 0xd97706, // Waffle / Wafer crust
@@ -39,11 +55,13 @@ export class CandyWorldBuilder {
     });
     const chocolateDarkMat = new THREE.MeshStandardMaterial({
       color: 0x451a03, // Rich Dark Chocolate
-      roughness: 0.4,
+      roughness: 0.38,
+      normalMap: glazeNormal,
+      normalScale: new THREE.Vector2(0.18, 0.18),
     });
     const chocolateMilkMat = new THREE.MeshStandardMaterial({
       color: 0x78350f, // Creamy Milk Chocolate
-      roughness: 0.45,
+      roughness: 0.42,
     });
     const marshmallowMat = new THREE.MeshStandardMaterial({
       color: 0xffffff, // Fluffy White Marshmallow
@@ -51,24 +69,32 @@ export class CandyWorldBuilder {
     });
     const candyCaneRedMat = new THREE.MeshStandardMaterial({
       color: 0xef4444, // Glossy Cherry Red Candy
-      roughness: 0.3,
+      roughness: 0.28,
       metalness: 0.1,
+      normalMap: glazeNormal,
+      normalScale: new THREE.Vector2(0.2, 0.2),
     });
     const candyCaneWhiteMat = new THREE.MeshStandardMaterial({
       color: 0xffffff, // Pure White Peppermint Sugar
-      roughness: 0.3,
+      roughness: 0.28,
     });
     const lollipopMintMat = new THREE.MeshStandardMaterial({
       color: 0x10b981, // Mint Lime Candy
-      roughness: 0.25,
+      roughness: 0.22,
+      normalMap: glazeNormal,
+      normalScale: new THREE.Vector2(0.3, 0.3),
     });
     const lollipopBerryMat = new THREE.MeshStandardMaterial({
       color: 0x8b5cf6, // Grape / Blueberry Candy
-      roughness: 0.25,
+      roughness: 0.22,
+      normalMap: glazeNormal,
+      normalScale: new THREE.Vector2(0.3, 0.3),
     });
     const lollipopLemonMat = new THREE.MeshStandardMaterial({
       color: 0xfacc15, // Sweet Lemon Drop
-      roughness: 0.25,
+      roughness: 0.22,
+      normalMap: glazeNormal,
+      normalScale: new THREE.Vector2(0.3, 0.3),
     });
     const gummyGreenMat = new THREE.MeshStandardMaterial({
       color: 0x10b981,
@@ -95,31 +121,81 @@ export class CandyWorldBuilder {
       opacity: 0.88,
     });
 
-    // 1. Frosting Terrain Island (220x220)
-    const islandGeom = new THREE.CylinderGeometry(110, 115, 6, 32);
+    // 1. Frosting Terrain Main Island (Expanded from 220x220 to 310x310)
+    const islandGeom = new THREE.CylinderGeometry(150, 156, 6, 40);
     const island = new THREE.Mesh(islandGeom, frostingMat);
     island.position.set(originX, -2.6, originZ);
     island.receiveShadow = true;
     island.castShadow = true;
     group.add(island);
 
-    // Biscuit wafer rim
-    const rimGeom = new THREE.TorusGeometry(112, 3, 12, 32);
+    // Biscuit wafer rim around expanded main island
+    const rimGeom = new THREE.TorusGeometry(152, 3.5, 12, 40);
     const rim = new THREE.Mesh(rimGeom, biscuitMat);
     rim.position.set(originX, 0.2, originZ);
     rim.rotation.x = Math.PI / 2;
     rim.receiveShadow = true;
     group.add(rim);
 
+    // Satellite Island 1: "Isla de los Malvaviscos Flotantes" (West)
+    const sat1Geom = new THREE.CylinderGeometry(42, 46, 5, 24);
+    const sat1Mesh = new THREE.Mesh(sat1Geom, frostingMat);
+    sat1Mesh.position.set(originX - 120, -2.2, originZ - 25);
+    sat1Mesh.receiveShadow = true;
+    group.add(sat1Mesh);
+
+    const sat1Rim = new THREE.Mesh(new THREE.TorusGeometry(43, 2.2, 10, 24), biscuitMat);
+    sat1Rim.position.set(originX - 120, 0.3, originZ - 25);
+    sat1Rim.rotation.x = Math.PI / 2;
+    group.add(sat1Rim);
+
+    // Satellite Island 2: "Archipiélago de Gomitas Saltarinas" (East)
+    const sat2Geom = new THREE.CylinderGeometry(45, 48, 5, 24);
+    const sat2Mesh = new THREE.Mesh(sat2Geom, frostingMat);
+    sat2Mesh.position.set(originX + 125, -2.2, originZ + 30);
+    sat2Mesh.receiveShadow = true;
+    group.add(sat2Mesh);
+
+    const sat2Rim = new THREE.Mesh(new THREE.TorusGeometry(46, 2.2, 10, 24), biscuitMat);
+    sat2Rim.position.set(originX + 125, 0.3, originZ + 30);
+    sat2Rim.rotation.x = Math.PI / 2;
+    group.add(sat2Rim);
+
+    // Satellite Island 3: "Cumbres Azucaradas del Norte" (North, behind Templo Choco)
+    const sat3Geom = new THREE.CylinderGeometry(48, 52, 6, 24);
+    const sat3Mesh = new THREE.Mesh(sat3Geom, frostingMat);
+    sat3Mesh.position.set(originX, -2.0, originZ + 135);
+    sat3Mesh.receiveShadow = true;
+    group.add(sat3Mesh);
+
+    // Grand Wafer Bridges connecting satellite islands
+    const createWaferBridge = (x1: number, z1: number, x2: number, z2: number, width = 5.0) => {
+      const dx = x2 - x1;
+      const dz = z2 - z1;
+      const dist = Math.hypot(dx, dz);
+      const angle = Math.atan2(dx, dz);
+
+      const bGeom = new THREE.BoxGeometry(width, 0.6, dist);
+      const bMesh = new THREE.Mesh(bGeom, biscuitMat);
+      bMesh.position.set((x1 + x2) / 2, 0.3, (z1 + z2) / 2);
+      bMesh.rotation.y = angle;
+      bMesh.receiveShadow = true;
+      group.add(bMesh);
+    };
+
+    createWaferBridge(originX - 85, originZ - 15, originX - 120, originZ - 25);
+    createWaferBridge(originX + 85, originZ + 20, originX + 125, originZ + 30);
+    createWaferBridge(originX, originZ + 90, originX, originZ + 135);
+
     // Sprinkles on the frosting ground
     const sprinkleColors = [0x38bdf8, 0xfacc15, 0xef4444, 0x10b981, 0xa855f7, 0xffffff];
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 150; i++) {
       const angle = (i * 2.39) % (Math.PI * 2);
-      const rad = 8 + ((i * 19) % 95);
+      const rad = 8 + ((i * 23) % 135);
       const sx = originX + Math.cos(angle) * rad;
       const sz = originZ + Math.sin(angle) * rad;
 
-      const sprinkleGeom = new THREE.CapsuleGeometry(0.16, 0.6, 4, 8);
+      const sprinkleGeom = new THREE.CapsuleGeometry(0.18, 0.7, 4, 8);
       const sMat = new THREE.MeshStandardMaterial({
         color: sprinkleColors[i % sprinkleColors.length],
         roughness: 0.3,
@@ -768,6 +844,196 @@ export class CandyWorldBuilder {
 
     group.add(castleGroup);
 
+    // --- 7.1.5 PORTAL AL TEMPLO CHOCO (Entrada a la dimensión aparte del Templo Choco) ---
+    const chocoPortalPos = new THREE.Vector3(originX, 0.4, originZ + 58);
+    const chocoPortalGroup = new THREE.Group();
+    chocoPortalGroup.position.copy(chocoPortalPos);
+
+    // Waffle biscuit pedestal
+    const chocoPedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.2, 3.6, 0.5, 24),
+      chocolateDarkMat
+    );
+    chocoPedestal.position.y = 0.25;
+    chocoPedestal.receiveShadow = true;
+    chocoPortalGroup.add(chocoPedestal);
+
+    // Twin Dark Chocolate Arch Pillars
+    const chocoArchL = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.35, 0.45, 5.2, 12),
+      chocolateDarkMat
+    );
+    chocoArchL.position.set(-2.4, 2.6, 0);
+    chocoPortalGroup.add(chocoArchL);
+
+    const chocoArchR = chocoArchL.clone();
+    chocoArchR.position.set(2.4, 2.6, 0);
+    chocoPortalGroup.add(chocoArchR);
+
+    // Swirling Molten Caramel & Chocolate Ring
+    const chocoRingGeom = new THREE.TorusGeometry(2.1, 0.35, 16, 32);
+    const chocoPortalRing = new THREE.Mesh(
+      chocoRingGeom,
+      new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        emissive: 0xd97706,
+        emissiveIntensity: 1.4,
+        roughness: 0.2,
+      })
+    );
+    chocoPortalRing.position.set(0, 2.6, 0);
+    chocoPortalGroup.add(chocoPortalRing);
+
+    // Swirling Dark Chocolate Vortex Disc
+    const chocoDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(1.95, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0x3b1d09,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.95,
+      })
+    );
+    chocoDisc.position.set(0, 2.6, 0);
+    chocoPortalGroup.add(chocoDisc);
+
+    // Illuminated Header Sign: 🍫 TEMPLO CHOCO
+    const chocoCanvas = document.createElement('canvas');
+    chocoCanvas.width = 512;
+    chocoCanvas.height = 130;
+    const chocoCtx = chocoCanvas.getContext('2d');
+    if (chocoCtx) {
+      chocoCtx.fillStyle = 'rgba(28, 10, 0, 0.94)';
+      chocoCtx.beginPath();
+      chocoCtx.roundRect(8, 8, 496, 114, 20);
+      chocoCtx.fill();
+      chocoCtx.strokeStyle = '#f59e0b';
+      chocoCtx.lineWidth = 6;
+      chocoCtx.stroke();
+
+      chocoCtx.fillStyle = '#fef08a';
+      chocoCtx.font = 'bold 34px sans-serif';
+      chocoCtx.textAlign = 'center';
+      chocoCtx.fillText('🍫 TEMPLO CHOCO 🍫', 256, 56);
+
+      chocoCtx.fillStyle = '#f472b6';
+      chocoCtx.font = 'bold 20px sans-serif';
+      chocoCtx.fillText('« Guarida del Gran Rey Oso de Gomita »', 256, 96);
+    }
+    const chocoTex = new THREE.CanvasTexture(chocoCanvas);
+    const chocoSignMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.2, 1.1),
+      new THREE.MeshBasicMaterial({ map: chocoTex, side: THREE.DoubleSide })
+    );
+    chocoSignMesh.position.set(0, 4.8, 0.1);
+    chocoPortalGroup.add(chocoSignMesh);
+
+    // Warm Golden Portal Light
+    const chocoPortalLight = new THREE.PointLight(0xf59e0b, 2.8, 16);
+    chocoPortalLight.position.set(0, 2.8, 0.6);
+    chocoPortalGroup.add(chocoPortalLight);
+
+    group.add(chocoPortalGroup);
+
+    // --- FOGATAS DE MALVAVISCO EN MUNDO CARAMELO ---
+    const campfires: SweetCampfireInstance[] = [];
+
+    const createSweetCampfire = (cx: number, cy: number, cz: number) => {
+      const fireGroup = new THREE.Group();
+      fireGroup.position.set(cx, cy, cz);
+
+      // Chocolate Stone Ring
+      const stoneMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.8 });
+      const sugarMat = new THREE.MeshStandardMaterial({ color: 0xfbcfe8, roughness: 0.4 });
+      for (let i = 0; i < 10; i++) {
+        const ang = (i / 10) * Math.PI * 2;
+        const pMesh = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.36),
+          i % 2 === 0 ? stoneMat : sugarMat
+        );
+        pMesh.position.set(Math.cos(ang) * 1.4, 0.2, Math.sin(ang) * 1.4);
+        fireGroup.add(pMesh);
+      }
+
+      // Cinnamon Wafer Logs
+      const logMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.7 });
+      for (let i = 0; i < 4; i++) {
+        const log = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.16, 0.18, 2.0, 8),
+          logMat
+        );
+        log.rotation.z = Math.PI / 3;
+        log.rotation.y = (i / 4) * Math.PI;
+        log.position.y = 0.22;
+        fireGroup.add(log);
+      }
+
+      // Sweet Animated Flame Cones
+      const flameMeshes: THREE.Mesh[] = [];
+      const flameColors = [0xf59e0b, 0xf43f5e, 0xfbbf24];
+      for (let f = 0; f < 3; f++) {
+        const flame = new THREE.Mesh(
+          new THREE.ConeGeometry(0.42 - f * 0.1, 1.1 - f * 0.2, 8),
+          new THREE.MeshStandardMaterial({
+            color: flameColors[f],
+            emissive: flameColors[f],
+            emissiveIntensity: 1.6,
+            transparent: true,
+            opacity: 0.88,
+            roughness: 0.1,
+          })
+        );
+        flame.position.set((Math.random() - 0.5) * 0.2, 0.65 + f * 0.15, (Math.random() - 0.5) * 0.2);
+        fireGroup.add(flame);
+        flameMeshes.push(flame);
+      }
+
+      // Embers
+      const emberMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.38, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xf59e0b })
+      );
+      emberMesh.position.y = 0.28;
+      fireGroup.add(emberMesh);
+
+      // Roasting Marshmallow on a Stick
+      const stick = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.04, 2.2, 6),
+        new THREE.MeshStandardMaterial({ color: 0xd97706 })
+      );
+      stick.position.set(0.6, 0.9, 0.4);
+      stick.rotation.z = -Math.PI / 4;
+      fireGroup.add(stick);
+
+      const roastMallow = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.16, 0.16, 0.35, 10),
+        new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.6 })
+      );
+      roastMallow.position.set(0.1, 1.4, 0.4);
+      roastMallow.rotation.z = -Math.PI / 4;
+      fireGroup.add(roastMallow);
+
+      // Point Light
+      const cfLight = new THREE.PointLight(0xf59e0b, 2.4, 16);
+      cfLight.position.set(0, 1.2, 0);
+      fireGroup.add(cfLight);
+
+      group.add(fireGroup);
+
+      campfires.push({
+        pos: new THREE.Vector3(cx, cy, cz),
+        safeRadius: 6.5,
+        light: cfLight,
+        flameMeshes,
+        emberMesh,
+      });
+    };
+
+    // 3 Fogatas en Mundo Caramelo
+    createSweetCampfire(originX - 22, 0.4, originZ - 8);  // Cerca de la tienda
+    createSweetCampfire(originX + 42, 0.4, originZ + 18); // En el bosque de piruletas
+    createSweetCampfire(originX, 0.4, originZ + 48);     // Frente al Templo Choco
+
     // 7.2 EL RÍO DE CHOCOLATE LÍQUIDO Y PUENTE DE BARQUILLO
     const riverGroup = new THREE.Group();
     riverGroup.position.set(originX, 0.42, originZ + 24);
@@ -1357,7 +1623,27 @@ export class CandyWorldBuilder {
         mesh: candyPortalGroup,
         ring: candyPortalRing,
       },
+      chocoPortal: {
+        pos: chocoPortalPos,
+        mesh: chocoPortalGroup,
+        ring: chocoPortalRing,
+      },
       castleArenaCenter: castleCenter,
+      campfires,
+      update: (dt: number, time: number) => {
+        // Animate campfire flames & embers
+        campfires.forEach((cf, idx) => {
+          cf.flameMeshes.forEach((flame, fIdx) => {
+            const flicker = 1.0 + Math.sin(time * 7 + idx * 2.3 + fIdx * 1.7) * 0.16;
+            flame.scale.set(flicker, flicker, flicker);
+          });
+        });
+
+        // Rotate portal rings
+        chocoPortalRing.rotation.z += 1.8 * dt;
+        candyPortalRing.rotation.z += 1.2 * dt;
+        mainPortalRing.rotation.z += 1.2 * dt;
+      },
     };
   }
 }

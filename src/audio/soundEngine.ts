@@ -82,6 +82,8 @@ class SoundEngine {
       if (this.isAmbientPlaying) {
         if (dimension === 'candy') {
           this.playFairyChimes(true);
+        } else if (dimension === 'choco_temple') {
+          this.playChocoTempleAmbient();
         } else {
           this.playForestBreeze();
         }
@@ -240,6 +242,8 @@ class SoundEngine {
     // Trigger initial ambient cue
     if (this.currentDimension === 'candy') {
       this.playCandyMagicalDrone();
+    } else if (this.currentDimension === 'choco_temple') {
+      this.playChocoTempleAmbient();
     } else {
       this.playForestBreeze();
     }
@@ -273,7 +277,15 @@ class SoundEngine {
   private triggerProceduralAmbientEvent() {
     if (!this.ctx || !this.ambientGain || this.ambientVolume <= 0.01) return;
 
-    if (this.currentDimension === 'candy') {
+    if (this.currentDimension === 'choco_temple') {
+      // Templo Choco: Deep rich cocoa drone or bubbling molten caramel
+      const rand = Math.random();
+      if (rand < 0.55) {
+        this.playChocoTempleAmbient();
+      } else {
+        this.playSugarBubblePop();
+      }
+    } else if (this.currentDimension === 'candy') {
       // Candy World: Sparkling chimes, sweet drones, sugar pops
       const rand = Math.random();
       if (rand < 0.42) {
@@ -502,6 +514,42 @@ class SoundEngine {
 
         osc.start(t + h.time);
         osc.stop(t + h.time + h.dur + 0.02);
+      });
+    } catch {
+      // Audio safety
+    }
+  }
+
+  /**
+   * Templo Choco: Deep cocoa resonance & bubbling molten caramel ambient tones
+   */
+  public playChocoTempleAmbient() {
+    if (!this.ctx || !this.ambientGain || this.ambientVolume <= 0.01) return;
+    try {
+      const t = this.ctx.currentTime;
+      // Deep warm resonant chord (C2, G2, Eb3)
+      const chord = [65.41, 98.0, 155.56];
+      chord.forEach((freq, idx) => {
+        if (!this.ctx || !this.ambientGain) return;
+        const osc = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(450, t);
+
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.linearRampToValueAtTime(0.035 / (idx + 1), t + 0.6);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 4.0);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ambientGain);
+
+        osc.start(t);
+        osc.stop(t + 4.1);
       });
     } catch {
       // Audio safety

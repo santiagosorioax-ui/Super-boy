@@ -95,46 +95,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <Zap className="w-3.5 h-3.5 text-amber-400" />
-                Rendimiento Móvil / Gráficos
+                Calidad de Gráficos / Rendimiento
               </span>
-              <span className="text-[10px] text-amber-400/80 font-normal">Para celular</span>
+              <span className="text-[10px] text-emerald-400 font-semibold">Cero Lag Optimizado</span>
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
                 onClick={() => onUpdateSettings({ graphicsQuality: 'low' })}
-                className={`px-3 py-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-0.5 transition ${
+                className={`px-2.5 py-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-0.5 transition ${
                   settings.graphicsQuality === 'low'
                     ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-900/40'
                     : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <span>Rápido (Bajo)</span>
+                <span>Rápido</span>
                 <span className="text-[10px] opacity-75">Max FPS</span>
               </button>
               <button
                 type="button"
                 onClick={() => onUpdateSettings({ graphicsQuality: 'medium' })}
-                className={`px-3 py-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-0.5 transition ${
+                className={`px-2.5 py-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-0.5 transition ${
                   settings.graphicsQuality === 'medium'
                     ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-900/40'
                     : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
                 }`}
               >
                 <span>Equilibrado</span>
-                <span className="text-[10px] opacity-75">Recomendado</span>
+                <span className="text-[10px] opacity-75">Estable 60 FPS</span>
               </button>
               <button
                 type="button"
                 onClick={() => onUpdateSettings({ graphicsQuality: 'high' })}
-                className={`px-3 py-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-0.5 transition ${
+                className={`px-2.5 py-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-0.5 transition ${
                   settings.graphicsQuality === 'high'
                     ? 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-900/40'
                     : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <span>Alto</span>
-                <span className="text-[10px] opacity-75">Sombras PCF</span>
+                <span>Alto HD</span>
+                <span className="text-[10px] opacity-75">PBR + Sombras</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({ graphicsQuality: 'ultra' })}
+                className={`px-2.5 py-2 rounded-xl text-xs font-medium border flex flex-col items-center gap-0.5 transition ${
+                  settings.graphicsQuality === 'ultra'
+                    ? 'bg-gradient-to-br from-amber-500 to-rose-600 border-amber-300 text-white shadow-lg shadow-amber-900/40 font-bold'
+                    : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <span>Ultra Real</span>
+                <span className="text-[10px] opacity-90">Sol + Reflejos</span>
               </button>
             </div>
 

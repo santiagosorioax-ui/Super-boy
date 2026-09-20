@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CoinData } from '../types';
+import { TextureSynthesizer } from './TextureSynthesizer';
 
 export interface CampfireInstance {
   pos: THREE.Vector3;
@@ -35,12 +36,41 @@ export class ValleyStructuresBuilder {
     const lanterns: THREE.PointLight[] = [];
     const campfires: CampfireInstance[] = [];
 
-    // Shared Materials
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.85 });
-    const plankMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
-    const barkMat = new THREE.MeshStandardMaterial({ color: 0x3f2212, roughness: 0.95 });
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.7, flatShading: true });
-    const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8, flatShading: true });
+    // Shared Realistic Materials with Procedural PBR Textures
+    const rockTex = TextureSynthesizer.getRockTexture();
+    const rockNorm = TextureSynthesizer.getRockNormal();
+    const woodBarkTex = TextureSynthesizer.getWoodBarkTexture();
+    const plankTex = TextureSynthesizer.getWoodPlankTexture();
+
+    const woodMat = new THREE.MeshStandardMaterial({
+      color: 0x6e4526,
+      roughness: 0.85,
+      map: woodBarkTex,
+    });
+    const plankMat = new THREE.MeshStandardMaterial({
+      color: 0x8a4b1c,
+      roughness: 0.78,
+      map: plankTex,
+    });
+    const barkMat = new THREE.MeshStandardMaterial({
+      color: 0x4a2916,
+      roughness: 0.92,
+      map: woodBarkTex,
+    });
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: 0x64748b,
+      roughness: 0.72,
+      map: rockTex,
+      normalMap: rockNorm,
+      normalScale: new THREE.Vector2(0.4, 0.4),
+    });
+    const darkStoneMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.82,
+      map: rockTex,
+      normalMap: rockNorm,
+      normalScale: new THREE.Vector2(0.45, 0.45),
+    });
     const giantLeafMat1 = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.75, flatShading: true });
     const giantLeafMat2 = new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 0.8, flatShading: true });
     const giantLeafMat3 = new THREE.MeshStandardMaterial({ color: 0x047857, roughness: 0.8, flatShading: true });
