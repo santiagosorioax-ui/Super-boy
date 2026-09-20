@@ -366,7 +366,31 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
               Teletransportación Instantánea
             </h3>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={() => onTeleportTo('candy_portal')}
+                className="p-3 rounded-xl bg-gradient-to-r from-pink-950/80 to-rose-950/80 hover:from-pink-900/90 hover:to-rose-900/90 border-2 border-pink-400 text-left transition active:scale-95 cursor-pointer shadow-lg ring-2 ring-pink-500/30"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-black text-pink-300 block">🍭 Mundo Caramelo</span>
+                  <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold border border-pink-400/50">MUNDO DULCE</span>
+                </div>
+                <span className="text-xs text-rose-200/80">Castillo de Chocolate, Gran Oso de Gomita y Nubes de Algodón</span>
+              </button>
+
+              <button
+                onClick={() => onTeleportTo('mayan_temple')}
+                className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/80 to-amber-950/80 hover:from-emerald-900/90 hover:to-amber-900/90 border-2 border-emerald-400 text-left transition active:scale-95 cursor-pointer shadow-lg ring-2 ring-emerald-500/30"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-black text-emerald-300 block">🏛️ Templo Maya</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-400/50">REY ZOMBI</span>
+                </div>
+                <span className="text-xs text-amber-200/80">Cripta ceremonial, altar ancestral y batalla de jefe</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mt-2">
               <button
                 onClick={() => onTeleportTo('spawn')}
                 className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left transition active:scale-95 cursor-pointer"
@@ -376,21 +400,10 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
               </button>
 
               <button
-                onClick={() => onTeleportTo('mayan_temple')}
-                className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/80 to-amber-950/80 hover:from-emerald-900/90 hover:to-amber-900/90 border-2 border-emerald-400 text-left transition active:scale-95 cursor-pointer col-span-2 shadow-lg ring-2 ring-emerald-500/30"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-black text-emerald-300 block">🏛️ Templo Maya (Interior & Rey Zombi)</span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-400/50">DESTINO PRINCIPAL</span>
-                </div>
-                <span className="text-xs text-amber-200/80">Teletransportación directa a la Gran Sala Ceremonial y Altar</span>
-              </button>
-
-              <button
                 onClick={() => onTeleportTo('shop')}
                 className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left transition active:scale-95 cursor-pointer"
               >
-                <span className="text-xs font-bold text-white block">🗡️ Tienda de Espadas</span>
+                <span className="text-xs font-bold text-white block">🗡️ Tienda Espadas</span>
                 <span className="text-[10px] text-slate-400">Armas y pócimas</span>
               </button>
 
@@ -398,7 +411,7 @@ export const VipProfileModal: React.FC<VipProfileModalProps> = ({
                 onClick={() => onTeleportTo('multiplier_shop')}
                 className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left transition active:scale-95 cursor-pointer"
               >
-                <span className="text-xs font-bold text-white block">⚡ Tienda de Multiplicadores</span>
+                <span className="text-xs font-bold text-white block">⚡ Multiplicadores</span>
                 <span className="text-[10px] text-slate-400">Poder de monedas</span>
               </button>
             </div>

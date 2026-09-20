@@ -9,6 +9,7 @@ export interface CandyWorldElements {
   coins: { data: CoinData; mesh: THREE.Group; light: THREE.PointLight | null }[];
   mainPortal: { pos: THREE.Vector3; mesh: THREE.Group; ring: THREE.Mesh };
   candyPortal: { pos: THREE.Vector3; mesh: THREE.Group; ring: THREE.Mesh };
+  castleArenaCenter: THREE.Vector3;
 }
 
 export class CandyWorldBuilder {
@@ -71,15 +72,27 @@ export class CandyWorldBuilder {
     });
     const gummyGreenMat = new THREE.MeshStandardMaterial({
       color: 0x10b981,
-      roughness: 0.2,
+      roughness: 0.18,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.88,
     });
     const gummyPinkMat = new THREE.MeshStandardMaterial({
       color: 0xf43f5e,
-      roughness: 0.2,
+      roughness: 0.18,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.88,
+    });
+    const gummyOrangeMat = new THREE.MeshStandardMaterial({
+      color: 0xf97316,
+      roughness: 0.18,
+      transparent: true,
+      opacity: 0.88,
+    });
+    const gummyCyanMat = new THREE.MeshStandardMaterial({
+      color: 0x06b6d4,
+      roughness: 0.18,
+      transparent: true,
+      opacity: 0.88,
     });
 
     // 1. Frosting Terrain Island (220x220)
@@ -301,40 +314,717 @@ export class CandyWorldBuilder {
     createMarshmallowStep(originX - 25, 12.0, originZ + 38, 2.5);
     createMarshmallowStep(originX - 5, 15.0, originZ + 45, 2.8);
 
-    // 7. Gummy Bear Trampolines (Bouncers)
-    const createGummyTrampoline = (x: number, y: number, z: number, color: 'green' | 'pink') => {
+    // 7. Gummy Bear Trampolines (Bouncers - "Los trampolines son gomitas")
+    const createGummyTrampoline = (
+      x: number,
+      y: number,
+      z: number,
+      color: 'pink' | 'green' | 'orange' | 'cyan',
+      rotation = 0
+    ) => {
       const padGroup = new THREE.Group();
       padGroup.position.set(x, y, z);
+      padGroup.rotation.y = rotation;
 
-      const padGeom = new THREE.CylinderGeometry(1.8, 2.0, 0.5, 20);
-      const padMesh = new THREE.Mesh(padGeom, color === 'green' ? gummyGreenMat : gummyPinkMat);
-      padMesh.position.y = 0.25;
-      padMesh.castShadow = true;
-      padGroup.add(padMesh);
+      const mat =
+        color === 'green'
+          ? gummyGreenMat
+          : color === 'orange'
+          ? gummyOrangeMat
+          : color === 'cyan'
+          ? gummyCyanMat
+          : gummyPinkMat;
 
-      // Gummy Bear Ears
-      const ear1 = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), color === 'green' ? gummyGreenMat : gummyPinkMat);
-      ear1.position.set(-1.2, 0.45, -0.6);
-      padGroup.add(ear1);
+      // 7.1 Translucent Sugar Ring Base
+      const sugarBase = new THREE.Mesh(
+        new THREE.CylinderGeometry(2.4, 2.6, 0.25, 24),
+        new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.3,
+          transparent: true,
+          opacity: 0.7,
+        })
+      );
+      sugarBase.position.y = 0.12;
+      padGroup.add(sugarBase);
 
-      const ear2 = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), color === 'green' ? gummyGreenMat : gummyPinkMat);
-      ear2.position.set(1.2, 0.45, -0.6);
-      padGroup.add(ear2);
+      // 7.2 Main Gummy Bear Bouncy Cushion Body
+      const bodyGeom = new THREE.CylinderGeometry(2.1, 2.3, 0.65, 24);
+      const bodyMesh = new THREE.Mesh(bodyGeom, mat);
+      bodyMesh.position.y = 0.45;
+      bodyMesh.castShadow = true;
+      padGroup.add(bodyMesh);
+
+      // 7.3 Cute Big Round Gummy Bear Ears
+      const earGeom = new THREE.SphereGeometry(0.6, 16, 16);
+      earGeom.scale(1.0, 0.75, 0.6);
+
+      const leftEar = new THREE.Mesh(earGeom, mat);
+      leftEar.position.set(-1.4, 0.7, -1.2);
+      padGroup.add(leftEar);
+
+      const rightEar = leftEar.clone();
+      rightEar.position.set(1.4, 0.7, -1.2);
+      padGroup.add(rightEar);
+
+      // Inner ear sugar drops
+      const innerEarGeom = new THREE.SphereGeometry(0.3, 12, 12);
+      const innerLeft = new THREE.Mesh(innerEarGeom, candyCaneWhiteMat);
+      innerLeft.position.set(-1.4, 0.78, -1.05);
+      padGroup.add(innerLeft);
+
+      const innerRight = innerLeft.clone();
+      innerRight.position.set(1.4, 0.78, -1.05);
+      padGroup.add(innerRight);
+
+      // 7.4 Cute Gummy Bear Paws
+      const pawGeom = new THREE.SphereGeometry(0.48, 14, 14);
+      pawGeom.scale(1.1, 0.65, 1.2);
+
+      const pawLeft = new THREE.Mesh(pawGeom, mat);
+      pawLeft.position.set(-1.6, 0.45, 1.2);
+      padGroup.add(pawLeft);
+
+      const pawRight = pawLeft.clone();
+      pawRight.position.set(1.6, 0.45, 1.2);
+      padGroup.add(pawRight);
+
+      // 7.5 Cute Gummy Snout & Jelly Nose
+      const snout = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 14, 14),
+        candyCaneWhiteMat
+      );
+      snout.scale.set(1.0, 0.55, 0.8);
+      snout.position.set(0, 0.72, -0.6);
+      padGroup.add(snout);
+
+      const nose = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 10, 10),
+        new THREE.MeshBasicMaterial({ color: 0x1e1b4b })
+      );
+      nose.position.set(0, 0.85, -0.85);
+      padGroup.add(nose);
 
       group.add(padGroup);
 
       springPads.push({
         pos: new THREE.Vector3(x, y, z),
-        mesh: padMesh,
-        radius: 2.2,
-        topY: y + 0.5,
+        mesh: bodyMesh,
+        radius: 2.5,
+        topY: y + 0.75,
       });
     };
 
-    createGummyTrampoline(originX, 0.4, originZ - 18, 'pink');
-    createGummyTrampoline(originX + 28, 0.4, originZ + 12, 'green');
-    createGummyTrampoline(originX - 28, 0.4, originZ - 8, 'pink');
-    createGummyTrampoline(originX + 40, 0.4, originZ - 28, 'green');
+    // Place Gummy Bear Trampolines in various flavors across the world
+    createGummyTrampoline(originX, 0.4, originZ - 18, 'pink', 0);
+    createGummyTrampoline(originX + 28, 0.4, originZ + 12, 'green', -0.5);
+    createGummyTrampoline(originX - 28, 0.4, originZ - 8, 'orange', 0.8);
+    createGummyTrampoline(originX + 40, 0.4, originZ - 28, 'cyan', -1.2);
+    createGummyTrampoline(originX - 16, 0.4, originZ + 42, 'pink', 0.3);
+    createGummyTrampoline(originX + 16, 0.4, originZ + 42, 'green', -0.3);
+
+    // 7.1 EL CASTILLO DE CHOCOLATE (Chocolate Castle)
+    const castleCenter = new THREE.Vector3(originX, 0.4, originZ + 68);
+    const castleGroup = new THREE.Group();
+    castleGroup.position.copy(castleCenter);
+
+    // Chocolate Materials
+    const darkChocoBarMat = new THREE.MeshStandardMaterial({
+      color: 0x361603,
+      roughness: 0.35,
+      metalness: 0.05,
+    });
+    const milkChocoBarMat = new THREE.MeshStandardMaterial({
+      color: 0x6b2e0b,
+      roughness: 0.4,
+    });
+    const whiteFrostingMat = new THREE.MeshStandardMaterial({
+      color: 0xfffbeb,
+      roughness: 0.25,
+    });
+    const waffleConeMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      roughness: 0.75,
+    });
+    const cherryGlossMat = new THREE.MeshStandardMaterial({
+      color: 0xdc2626,
+      roughness: 0.1,
+      metalness: 0.2,
+    });
+
+    // Castle Grand Platform
+    const castleBaseGeom = new THREE.BoxGeometry(36, 1.0, 38);
+    const castleBase = new THREE.Mesh(castleBaseGeom, biscuitMat);
+    castleBase.position.set(0, 0.5, 0);
+    castleBase.receiveShadow = true;
+    castleGroup.add(castleBase);
+    platforms.push({
+      box: new THREE.Box3(
+        new THREE.Vector3(castleCenter.x - 18, 0, castleCenter.z - 19),
+        new THREE.Vector3(castleCenter.x + 18, 1.0, castleCenter.z + 19)
+      ),
+      topY: 1.0,
+    });
+
+    // Castle Outer Walls (Dark & Milk Chocolate Bricks)
+    const wallThickness = 2.4;
+    const wallHeight = 12.0;
+
+    // West Wall
+    const westWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThickness, wallHeight, 36),
+      darkChocoBarMat
+    );
+    westWall.position.set(-16.8, wallHeight / 2 + 0.5, 0);
+    westWall.castShadow = true;
+    castleGroup.add(westWall);
+    colliders.push(
+      new THREE.Box3(
+        new THREE.Vector3(castleCenter.x - 18, 0, castleCenter.z - 18),
+        new THREE.Vector3(castleCenter.x - 15.6, wallHeight + 1, castleCenter.z + 18)
+      )
+    );
+
+    // East Wall
+    const eastWall = westWall.clone();
+    eastWall.position.set(16.8, wallHeight / 2 + 0.5, 0);
+    castleGroup.add(eastWall);
+    colliders.push(
+      new THREE.Box3(
+        new THREE.Vector3(castleCenter.x + 15.6, 0, castleCenter.z - 18),
+        new THREE.Vector3(castleCenter.x + 18, wallHeight + 1, castleCenter.z + 18)
+      )
+    );
+
+    // North Wall (Behind Royal Throne)
+    const northWall = new THREE.Mesh(
+      new THREE.BoxGeometry(36, wallHeight, wallThickness),
+      darkChocoBarMat
+    );
+    northWall.position.set(0, wallHeight / 2 + 0.5, 17.8);
+    northWall.castShadow = true;
+    castleGroup.add(northWall);
+    colliders.push(
+      new THREE.Box3(
+        new THREE.Vector3(castleCenter.x - 18, 0, castleCenter.z + 16.6),
+        new THREE.Vector3(castleCenter.x + 18, wallHeight + 1, castleCenter.z + 19)
+      )
+    );
+
+    // South Facade with Grand Entrance Archway
+    // Left South Wall
+    const southLeft = new THREE.Mesh(
+      new THREE.BoxGeometry(13.5, wallHeight, wallThickness),
+      darkChocoBarMat
+    );
+    southLeft.position.set(-11.2, wallHeight / 2 + 0.5, -17.8);
+    southLeft.castShadow = true;
+    castleGroup.add(southLeft);
+    colliders.push(
+      new THREE.Box3(
+        new THREE.Vector3(castleCenter.x - 18, 0, castleCenter.z - 19),
+        new THREE.Vector3(castleCenter.x - 4.5, wallHeight + 1, castleCenter.z - 16.6)
+      )
+    );
+
+    // Right South Wall
+    const southRight = southLeft.clone();
+    southRight.position.set(11.2, wallHeight / 2 + 0.5, -17.8);
+    castleGroup.add(southRight);
+    colliders.push(
+      new THREE.Box3(
+        new THREE.Vector3(castleCenter.x + 4.5, 0, castleCenter.z - 19),
+        new THREE.Vector3(castleCenter.x + 18, wallHeight + 1, castleCenter.z - 16.6)
+      )
+    );
+
+    // Entrance Arch Lintels & Drip Frosting
+    const archLintel = new THREE.Mesh(
+      new THREE.BoxGeometry(10, 4.0, wallThickness + 0.8),
+      milkChocoBarMat
+    );
+    archLintel.position.set(0, wallHeight - 1.5, -17.8);
+    castleGroup.add(archLintel);
+
+    // Frosting Drip Carvings
+    const dripGeom = new THREE.CylinderGeometry(0.3, 0.1, 1.8, 8);
+    for (let d = -4; d <= 4; d += 1.2) {
+      const drip = new THREE.Mesh(dripGeom, whiteFrostingMat);
+      drip.position.set(d, wallHeight - 3.8, -16.8);
+      castleGroup.add(drip);
+    }
+
+    // 4 Grand Waffle Cone Towers at the 4 Corners
+    const cornerPositions = [
+      { x: -17, z: -18 },
+      { x: 17, z: -18 },
+      { x: -17, z: 18 },
+      { x: 17, z: 18 },
+    ];
+
+    cornerPositions.forEach((pos) => {
+      const towerGroup = new THREE.Group();
+      towerGroup.position.set(pos.x, 0, pos.z);
+
+      // Tower Shaft (Layered Chocolate Cylinders)
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(2.8, 3.2, wallHeight + 3, 16),
+        milkChocoBarMat
+      );
+      shaft.position.y = (wallHeight + 3) / 2;
+      shaft.castShadow = true;
+      towerGroup.add(shaft);
+
+      // Waffle Spire Cone
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(3.5, 7.5, 16),
+        waffleConeMat
+      );
+      cone.position.y = wallHeight + 3 + 3.75;
+      cone.castShadow = true;
+      towerGroup.add(cone);
+
+      // Dark Chocolate Glaze Cap
+      const glaze = new THREE.Mesh(
+        new THREE.ConeGeometry(2.4, 3.5, 16),
+        darkChocoBarMat
+      );
+      glaze.position.y = wallHeight + 3 + 5.5;
+      towerGroup.add(glaze);
+
+      // Glossy Giant Red Cherry on Top
+      const cherry = new THREE.Mesh(
+        new THREE.SphereGeometry(0.7, 14, 14),
+        cherryGlossMat
+      );
+      cherry.position.y = wallHeight + 3 + 7.8;
+      towerGroup.add(cherry);
+
+      castleGroup.add(towerGroup);
+
+      // Tower colliders
+      colliders.push(
+        new THREE.Box3(
+          new THREE.Vector3(castleCenter.x + pos.x - 3, 0, castleCenter.z + pos.z - 3),
+          new THREE.Vector3(castleCenter.x + pos.x + 3, wallHeight + 6, castleCenter.z + pos.z + 3)
+        )
+      );
+    });
+
+    // Castle Battlements (Almenas)
+    for (let bx = -15; bx <= 15; bx += 3) {
+      // South Battlements
+      if (Math.abs(bx) > 4) {
+        const merlon = new THREE.Mesh(
+          new THREE.BoxGeometry(1.6, 1.8, wallThickness),
+          milkChocoBarMat
+        );
+        merlon.position.set(bx, wallHeight + 1.4, -17.8);
+        castleGroup.add(merlon);
+      }
+      // North Battlements
+      const merlonN = new THREE.Mesh(
+        new THREE.BoxGeometry(1.6, 1.8, wallThickness),
+        milkChocoBarMat
+      );
+      merlonN.position.set(bx, wallHeight + 1.4, 17.8);
+      castleGroup.add(merlonN);
+    }
+
+    // Grand 3D Banner Sign over Entrance Gate
+    const createCastleSign = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 160;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = 'rgba(28, 12, 4, 0.95)';
+        ctx.beginPath();
+        ctx.roundRect(10, 10, 492, 140, 24);
+        ctx.fill();
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 8;
+        ctx.stroke();
+
+        ctx.fillStyle = '#fef08a';
+        ctx.font = 'bold 34px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🏰 CASTILLO DE CHOCOLATE', 256, 64);
+
+        ctx.fillStyle = '#f43f5e';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillText('« Guarida del Gran Rey Oso de Gomita »', 256, 116);
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      const signMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(6.5, 2.0), signMat);
+      mesh.position.set(0, wallHeight - 1.2, -19.4);
+      return mesh;
+    };
+    castleGroup.add(createCastleSign());
+
+    // Interior Arena: Checkerboard Floor Tiles of Dark and White Chocolate
+    const tileSize = 3.2;
+    for (let tx = -4; tx <= 4; tx++) {
+      for (let tz = -4; tz <= 4; tz++) {
+        const isDark = (tx + tz) % 2 === 0;
+        const tile = new THREE.Mesh(
+          new THREE.BoxGeometry(tileSize - 0.1, 0.2, tileSize - 0.1),
+          isDark ? darkChocoBarMat : whiteFrostingMat
+        );
+        tile.position.set(tx * tileSize, 1.05, tz * tileSize);
+        tile.receiveShadow = true;
+        castleGroup.add(tile);
+      }
+    }
+
+    // 6 Interior Chocolate Columns with Gold Wrappers
+    const columnPositions = [
+      { x: -10, z: -9 },
+      { x: 10, z: -9 },
+      { x: -10, z: 2 },
+      { x: 10, z: 2 },
+      { x: -10, z: 11 },
+      { x: 10, z: 11 },
+    ];
+
+    columnPositions.forEach((cp) => {
+      const col = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.0, 1.1, wallHeight, 16),
+        darkChocoBarMat
+      );
+      col.position.set(cp.x, wallHeight / 2 + 0.5, cp.z);
+      col.castShadow = true;
+      castleGroup.add(col);
+
+      // Gold wrapper rings
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.15, 1.15, 0.8, 16),
+        new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8, roughness: 0.2 })
+      );
+      ring.position.set(cp.x, 3.5, cp.z);
+      castleGroup.add(ring);
+
+      colliders.push(
+        new THREE.Box3(
+          new THREE.Vector3(castleCenter.x + cp.x - 1.2, 0, castleCenter.z + cp.z - 1.2),
+          new THREE.Vector3(castleCenter.x + cp.x + 1.2, wallHeight, castleCenter.z + cp.z + 1.2)
+        )
+      );
+    });
+
+    // Grand Royal Chocolate Throne at the back (z = +14)
+    const throneGroup = new THREE.Group();
+    throneGroup.position.set(0, 1.0, 14.0);
+
+    // Throne Dais
+    const dais = new THREE.Mesh(
+      new THREE.BoxGeometry(6.5, 0.8, 5.0),
+      milkChocoBarMat
+    );
+    dais.position.y = 0.4;
+    dais.receiveShadow = true;
+    throneGroup.add(dais);
+    platforms.push({
+      box: new THREE.Box3(
+        new THREE.Vector3(castleCenter.x - 3.2, 0, castleCenter.z + 11.5),
+        new THREE.Vector3(castleCenter.x + 3.2, 1.8, castleCenter.z + 16.5)
+      ),
+      topY: 1.8,
+    });
+
+    // Throne Seat
+    const throneSeat = new THREE.Mesh(
+      new THREE.BoxGeometry(3.6, 1.2, 2.4),
+      darkChocoBarMat
+    );
+    throneSeat.position.set(0, 1.4, 0);
+    throneGroup.add(throneSeat);
+
+    // Throne High Backrest
+    const throneBack = new THREE.Mesh(
+      new THREE.BoxGeometry(3.6, 4.8, 0.8),
+      darkChocoBarMat
+    );
+    throneBack.position.set(0, 3.8, 0.8);
+    throneGroup.add(throneBack);
+
+    // Golden Royal Crest & Giant Ruby Jewel on Throne
+    const crest = new THREE.Mesh(
+      new THREE.ConeGeometry(0.8, 1.4, 8),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.8 })
+    );
+    crest.position.set(0, 6.6, 0.8);
+    throneGroup.add(crest);
+
+    const royalGem = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.65),
+      new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.1, emissive: 0x991b1b })
+    );
+    royalGem.position.set(0, 5.2, 1.3);
+    throneGroup.add(royalGem);
+
+    castleGroup.add(throneGroup);
+
+    group.add(castleGroup);
+
+    // 7.2 EL RÍO DE CHOCOLATE LÍQUIDO Y PUENTE DE BARQUILLO
+    const riverGroup = new THREE.Group();
+    riverGroup.position.set(originX, 0.42, originZ + 24);
+
+    // River Bed (Chocolate & Strawberry Swirl)
+    const riverGeom = new THREE.PlaneGeometry(160, 10);
+    riverGeom.rotateX(-Math.PI / 2);
+    const riverMat = new THREE.MeshStandardMaterial({
+      color: 0x451a03,
+      roughness: 0.1,
+      metalness: 0.3,
+    });
+    const riverMesh = new THREE.Mesh(riverGeom, riverMat);
+    riverMesh.receiveShadow = true;
+    riverGroup.add(riverMesh);
+
+    // River Cream Foam Banks
+    const bankGeom = new THREE.BoxGeometry(160, 0.5, 1.4);
+    const bankSouth = new THREE.Mesh(bankGeom, whiteFrostingMat);
+    bankSouth.position.set(0, 0.25, -5.2);
+    riverGroup.add(bankSouth);
+
+    const bankNorth = bankSouth.clone();
+    bankNorth.position.set(0, 0.25, 5.2);
+    riverGroup.add(bankNorth);
+
+    // Grand Wafer Biscuit Bridge at Center (originX, originZ + 24)
+    const bridgeGroup = new THREE.Group();
+    const bridgeGeom = new THREE.BoxGeometry(6.4, 0.7, 12.0);
+    const bridgeMesh = new THREE.Mesh(bridgeGeom, biscuitMat);
+    bridgeMesh.position.y = 0.35;
+    bridgeMesh.receiveShadow = true;
+    bridgeMesh.castShadow = true;
+    bridgeGroup.add(bridgeMesh);
+
+    // Candy Cane Railings on Bridge
+    for (let rz = -5; rz <= 5; rz += 2.5) {
+      const postGeom = new THREE.CylinderGeometry(0.18, 0.18, 1.4, 8);
+      const postL = new THREE.Mesh(postGeom, candyCaneRedMat);
+      postL.position.set(-3.1, 1.2, rz);
+      bridgeGroup.add(postL);
+
+      const postR = postL.clone();
+      postR.position.set(3.1, 1.2, rz);
+      bridgeGroup.add(postR);
+    }
+    const railGeom = new THREE.CylinderGeometry(0.14, 0.14, 11.5, 8);
+    railGeom.rotateX(Math.PI / 2);
+    const railL = new THREE.Mesh(railGeom, candyCaneWhiteMat);
+    railL.position.set(-3.1, 1.8, 0);
+    bridgeGroup.add(railL);
+
+    const railR = railL.clone();
+    railR.position.set(3.1, 1.8, 0);
+    bridgeGroup.add(railR);
+
+    riverGroup.add(bridgeGroup);
+    group.add(riverGroup);
+
+    // 7.3 LA TIENDA DE CARAMELO DE SANTI (Physical Kiosk at candyShopPos: 608, 0.4, 588)
+    const shopGroup = new THREE.Group();
+    shopGroup.position.set(608.0, 0.4, 588.0);
+
+    // Shop Wafer Counter & Base
+    const shopBase = new THREE.Mesh(
+      new THREE.BoxGeometry(5.5, 1.2, 3.8),
+      biscuitMat
+    );
+    shopBase.position.y = 0.6;
+    shopBase.castShadow = true;
+    shopGroup.add(shopBase);
+    colliders.push(
+      new THREE.Box3(
+        new THREE.Vector3(608 - 2.8, 0, 588 - 2.0),
+        new THREE.Vector3(608 + 2.8, 1.8, 588 + 2.0)
+      )
+    );
+
+    // 4 Striped Candy Cane Corner Posts
+    const shopPostGeom = new THREE.CylinderGeometry(0.18, 0.18, 4.0, 10);
+    [
+      { x: -2.5, z: -1.7 },
+      { x: 2.5, z: -1.7 },
+      { x: -2.5, z: 1.7 },
+      { x: 2.5, z: 1.7 },
+    ].forEach((pp) => {
+      const p = new THREE.Mesh(shopPostGeom, candyCaneRedMat);
+      p.position.set(pp.x, 2.0, pp.z);
+      shopGroup.add(p);
+    });
+
+    // Scalloped Striped Peppermint Canopy Roof
+    const roofGeom = new THREE.ConeGeometry(4.2, 1.8, 8);
+    const roof = new THREE.Mesh(
+      roofGeom,
+      new THREE.MeshStandardMaterial({ color: 0xf43f5e, roughness: 0.4 })
+    );
+    roof.position.y = 4.6;
+    shopGroup.add(roof);
+
+    // Display Jars & Boots Cushion on Counter
+    const cushion = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.8, 0.9, 0.25, 16),
+      new THREE.MeshStandardMaterial({ color: 0xa855f7 })
+    );
+    cushion.position.set(0, 1.3, 0);
+    shopGroup.add(cushion);
+
+    // Glowing Miniature Gummy Boots on Display!
+    const displayBootL = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 0.5, 0.65),
+      gummyPinkMat
+    );
+    displayBootL.position.set(-0.35, 1.65, 0);
+    shopGroup.add(displayBootL);
+
+    const displayBootR = displayBootL.clone();
+    displayBootR.position.set(0.35, 1.65, 0);
+    shopGroup.add(displayBootR);
+
+    // 3D Illuminated Shop Sign
+    const createShopSign = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 140;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.beginPath();
+        ctx.roundRect(10, 10, 492, 120, 24);
+        ctx.fill();
+        ctx.strokeStyle = '#ec4899';
+        ctx.lineWidth = 6;
+        ctx.stroke();
+
+        ctx.fillStyle = '#f472b6';
+        ctx.font = 'bold 32px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🍬 TIENDA DE DULCES & BOTAS', 256, 60);
+
+        ctx.fillStyle = '#fef08a';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillText('« ¡Espadas de Caramelo y Botas de Gomita! »', 256, 102);
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      const sMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+      const sm = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 1.3), sMat);
+      sm.position.set(0, 3.8, 1.95);
+      return sm;
+    };
+    shopGroup.add(createShopSign());
+
+    group.add(shopGroup);
+
+    // 7.4 HONGOS DE GOMINOLA GIGANTES (Giant Bouncy Gummy Mushrooms)
+    const createGummyMushroom = (
+      mx: number,
+      my: number,
+      mz: number,
+      capColor: THREE.MeshStandardMaterial,
+      scale = 1.0
+    ) => {
+      const mGroup = new THREE.Group();
+      mGroup.position.set(mx, my, mz);
+      mGroup.scale.set(scale, scale, scale);
+
+      // Sugar Stalk
+      const stalk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.7, 1.1, 4.0, 16),
+        whiteFrostingMat
+      );
+      stalk.position.y = 2.0;
+      stalk.castShadow = true;
+      mGroup.add(stalk);
+
+      // Translucent Jelly Cap
+      const capGeom = new THREE.SphereGeometry(2.4, 20, 20, 0, Math.PI * 2, 0, Math.PI / 2);
+      const cap = new THREE.Mesh(capGeom, capColor);
+      cap.position.y = 3.9;
+      cap.castShadow = true;
+      mGroup.add(cap);
+
+      group.add(mGroup);
+
+      platforms.push({
+        box: new THREE.Box3(
+          new THREE.Vector3(mx - 2.2 * scale, my, mz - 2.2 * scale),
+          new THREE.Vector3(mx + 2.2 * scale, my + 4.2 * scale, mz + 2.2 * scale)
+        ),
+        topY: my + 4.2 * scale,
+      });
+
+      // Cap also acts as a bouncer!
+      springPads.push({
+        pos: new THREE.Vector3(mx, my + 3.8 * scale, mz),
+        mesh: cap,
+        radius: 2.4 * scale,
+        topY: my + 4.3 * scale,
+      });
+    };
+
+    createGummyMushroom(originX - 35, 0.4, originZ + 20, gummyPinkMat, 1.1);
+    createGummyMushroom(originX + 38, 0.4, originZ + 35, gummyGreenMat, 1.2);
+    createGummyMushroom(originX - 22, 0.4, originZ + 55, gummyOrangeMat, 1.0);
+
+    // 7.5 NUBES DE ALGODÓN DE AZÚCAR FLOTANTES (High Sky Clouds for Gummy Boots)
+    const createCottonCandyCloud = (
+      cx: number,
+      cy: number,
+      cz: number,
+      colorHex: number
+    ) => {
+      const cloudGroup = new THREE.Group();
+      cloudGroup.position.set(cx, cy, cz);
+
+      const cloudMat = new THREE.MeshStandardMaterial({
+        color: colorHex,
+        roughness: 0.9,
+        transparent: true,
+        opacity: 0.88,
+      });
+
+      // Cluster of fluffy spheres
+      const puffGeom = new THREE.SphereGeometry(1.8, 14, 14);
+      const p1 = new THREE.Mesh(puffGeom, cloudMat);
+      cloudGroup.add(p1);
+
+      const p2 = new THREE.Mesh(puffGeom, cloudMat);
+      p2.position.set(-1.6, -0.2, 0.4);
+      p2.scale.set(0.85, 0.85, 0.85);
+      cloudGroup.add(p2);
+
+      const p3 = new THREE.Mesh(puffGeom, cloudMat);
+      p3.position.set(1.6, -0.1, -0.3);
+      p3.scale.set(0.9, 0.9, 0.9);
+      cloudGroup.add(p3);
+
+      const p4 = new THREE.Mesh(puffGeom, cloudMat);
+      p4.position.set(0, 0.4, 1.2);
+      p4.scale.set(0.8, 0.8, 0.8);
+      cloudGroup.add(p4);
+
+      group.add(cloudGroup);
+
+      platforms.push({
+        box: new THREE.Box3(
+          new THREE.Vector3(cx - 3.2, cy - 1.0, cz - 2.5),
+          new THREE.Vector3(cx + 3.2, cy + 1.2, cz + 2.5)
+        ),
+        topY: cy + 1.2,
+      });
+    };
+
+    createCottonCandyCloud(originX - 15, 14.0, originZ + 10, 0xfbcfe8); // Pink pastel
+    createCottonCandyCloud(originX + 15, 18.0, originZ + 18, 0xcffafe); // Cyan pastel
+    createCottonCandyCloud(originX, 22.0, originZ + 38, 0xfef08a); // Buttercup pastel
+    createCottonCandyCloud(originX + 22, 26.0, originZ + 55, 0xe9d5ff); // Lavender pastel overlooking castle!
 
     // 8. Dimensional Portals
     // Helper to create a 3D Sign Canvas
@@ -428,57 +1118,73 @@ export class CandyWorldBuilder {
 
     group.add(candyPortalGroup);
 
-    // 8.2 Portal inside Main World (Teleports to Mayan Temple)
+    // 8.2 Portal inside Main World (Teleports to Candy World)
     const mainPortalGroup = new THREE.Group();
     const mainPortalGroundH = getTerrainHeightFn ? getTerrainHeightFn(18, -18) : 0.4;
     const mainPortalPos = new THREE.Vector3(18, mainPortalGroundH, -18);
     mainPortalGroup.position.copy(mainPortalPos);
 
-    // Mayan Stone Base Platform
-    const darkAndesiteMat = new THREE.MeshStandardMaterial({
-      color: 0x292524,
-      roughness: 0.8,
-      flatShading: true,
+    // Frosted Pink Biscuit & Marshmallow Platform Base
+    const frostedBiscuitMat = new THREE.MeshStandardMaterial({
+      color: 0xf472b6,
+      roughness: 0.4,
+      metalness: 0.1,
     });
-    const jadeGlowMat = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      emissive: 0x059669,
-      emissiveIntensity: 2.2,
-      roughness: 0.2,
-    });
-    const goldOrnamentMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0xb45309,
-      emissiveIntensity: 0.8,
-      metalness: 0.8,
-      roughness: 0.2,
-    });
-
     const mainPortalBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.6, 4.0, 0.4, 16),
-      darkAndesiteMat
+      new THREE.CylinderGeometry(3.6, 4.0, 0.4, 24),
+      frostedBiscuitMat
     );
     mainPortalBase.position.y = 0.2;
     mainPortalBase.receiveShadow = true;
     mainPortalGroup.add(mainPortalBase);
 
-    // Mayan Stone Arch
-    const mainArch = new THREE.Mesh(archGeom, darkAndesiteMat);
+    // Marshmallow rim ring around the base
+    const marshmallowRing = new THREE.Mesh(
+      new THREE.TorusGeometry(3.6, 0.25, 8, 24),
+      marshmallowMat
+    );
+    marshmallowRing.rotation.x = Math.PI / 2;
+    marshmallowRing.position.y = 0.4;
+    mainPortalGroup.add(marshmallowRing);
+
+    // Candy Cane Arch
+    const candyArchMat = new THREE.MeshStandardMaterial({
+      color: 0xff0055,
+      roughness: 0.25,
+      metalness: 0.1,
+    });
+    const mainArch = new THREE.Mesh(archGeom, candyArchMat);
     mainArch.position.set(0, 2.6, 0);
     mainArch.castShadow = true;
     mainPortalGroup.add(mainArch);
 
-    const mainPillar1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.8, 0.8), darkAndesiteMat);
-    mainPillar1.position.set(-2.4, 1.4, 0);
-    mainPortalGroup.add(mainPillar1);
+    // Striped Candy Cane Pillars
+    const candyPillar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.45, 2.8, 16), candyCaneWhiteMat);
+    candyPillar1.position.set(-2.4, 1.4, 0);
+    mainPortalGroup.add(candyPillar1);
 
-    const mainPillar2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.8, 0.8), darkAndesiteMat);
-    mainPillar2.position.set(2.4, 1.4, 0);
-    mainPortalGroup.add(mainPillar2);
+    const candyPillar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.45, 2.8, 16), candyCaneWhiteMat);
+    candyPillar2.position.set(2.4, 1.4, 0);
+    mainPortalGroup.add(candyPillar2);
 
-    // Swirling Jade Green Mayan Vortex Ring
+    // Red spiral rings on the pillars
+    for (let r = 0; r < 4; r++) {
+      const ringGeom = new THREE.TorusGeometry(0.44, 0.08, 8, 16);
+      const ringMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+      const r1 = new THREE.Mesh(ringGeom, ringMat);
+      r1.rotation.x = Math.PI / 2 + 0.2;
+      r1.position.set(-2.4, 0.6 + r * 0.6, 0);
+      mainPortalGroup.add(r1);
+
+      const r2 = new THREE.Mesh(ringGeom, ringMat);
+      r2.rotation.x = Math.PI / 2 - 0.2;
+      r2.position.set(2.4, 0.6 + r * 0.6, 0);
+      mainPortalGroup.add(r2);
+    }
+
+    // Swirling Cotton Candy / Magenta Vortex Ring
     const mainVortexMat = new THREE.MeshBasicMaterial({
-      color: 0x10b981,
+      color: 0xf43f5e,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.9,
@@ -487,28 +1193,64 @@ export class CandyWorldBuilder {
     mainPortalRing.position.set(0, 2.6, 0);
     mainPortalGroup.add(mainPortalRing);
 
-    // Sky Beacon Beam (Mystic Emerald Green)
-    const mainBeamGeom = new THREE.CylinderGeometry(0.9, 0.9, 80, 16);
+    // Sky Beacon Beam (Vibrant Hot Pink / Magenta reaching 85m into the sky, visible everywhere)
+    const mainBeamGeom = new THREE.CylinderGeometry(0.9, 0.9, 85, 16);
     const mainBeamMat = new THREE.MeshBasicMaterial({
-      color: 0x10b981,
+      color: 0xf43f5e,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.55,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
     const mainBeam = new THREE.Mesh(mainBeamGeom, mainBeamMat);
-    mainBeam.position.set(0, 40, 0);
+    mainBeam.position.set(0, 42.5, 0);
     mainPortalGroup.add(mainBeam);
 
-    // Floating Golden Serpent / Sun Icon above Portal
-    const sunIcon = new THREE.Mesh(new THREE.OctahedronGeometry(0.8, 0), goldOrnamentMat);
-    sunIcon.position.set(0, 5.8, 0);
-    mainPortalGroup.add(sunIcon);
+    // Floating Giant Swirl Lollipop & Sugar Star above Portal
+    const lollipopHead = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.9, 0.9, 0.25, 24),
+      new THREE.MeshStandardMaterial({ color: 0xfb7185, roughness: 0.2 })
+    );
+    lollipopHead.rotation.x = Math.PI / 2;
+    lollipopHead.position.set(0, 6.0, 0);
+    mainPortalGroup.add(lollipopHead);
 
-    // Overhead Sign
-    const mainSign = createPortalSign('🏛️ TEMPLO MAYA', '« Entra para enfrentar al Rey Zombi »', '#10b981');
+    const lollipopStar = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.5, 0),
+      new THREE.MeshStandardMaterial({ color: 0xfde047, emissive: 0xf59e0b, emissiveIntensity: 1.2 })
+    );
+    lollipopStar.position.set(0, 6.0, 0.2);
+    mainPortalGroup.add(lollipopStar);
+
+    // Glowing Pink Portal Point Light
+    const portalPointLight = new THREE.PointLight(0xf43f5e, 2.5, 14);
+    portalPointLight.position.set(0, 2.6, 0.8);
+    mainPortalGroup.add(portalPointLight);
+
+    // Overhead Sign: 🍭 MUNDO CARAMELO
+    const mainSign = createPortalSign('🍭 MUNDO CARAMELO', '« Castillo de Chocolate & Gran Oso »', '#f43f5e');
     mainSign.position.set(0, 4.8, 0);
     mainPortalGroup.add(mainSign);
+
+    // Guide path of cute candy stepping stones leading towards portal from plaza
+    const pathStones = [
+      { x: 10, z: -8 },
+      { x: 13, z: -12 },
+      { x: 16, z: -15 },
+    ];
+    pathStones.forEach((st, idx) => {
+      const stoneH = getTerrainHeightFn ? getTerrainHeightFn(st.x, st.z) : 0.4;
+      const stoneMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.8, 0.9, 0.15, 16),
+        new THREE.MeshStandardMaterial({
+          color: idx % 2 === 0 ? 0xf472b6 : 0x38bdf8,
+          roughness: 0.3,
+        })
+      );
+      stoneMesh.position.set(st.x, stoneH + 0.08, st.z);
+      stoneMesh.receiveShadow = true;
+      scene.add(stoneMesh);
+    });
 
     scene.add(mainPortalGroup);
 
@@ -526,6 +1268,22 @@ export class CandyWorldBuilder {
       { x: originX + 8, y: 11.5, z: originZ - 52, type: 'gem', value: 5 },
       { x: originX + 22, y: 15.0, z: originZ - 45, type: 'gem', value: 5 },
       { x: originX + 32, y: 19.0, z: originZ - 35, type: 'star', value: 10 }, // The Summit Sugar Super Star!
+      // New Castle & Life Coins:
+      { x: originX, y: 1.6, z: originZ + 24, type: 'gold', value: 1 }, // River Bridge
+      { x: originX, y: 1.6, z: originZ + 54, type: 'gold', value: 1 }, // Castle Approach
+      { x: originX - 6, y: 1.6, z: originZ + 66, type: 'gem', value: 5 }, // Arena Left
+      { x: originX + 6, y: 1.6, z: originZ + 66, type: 'gem', value: 5 }, // Arena Right
+      { x: originX, y: 3.4, z: originZ + 82, type: 'star', value: 10 }, // Royal Throne Star!
+      { x: originX - 17, y: 16.0, z: originZ + 50, type: 'gem', value: 5 }, // Tower SW Cherry
+      { x: originX + 17, y: 16.0, z: originZ + 50, type: 'gem', value: 5 }, // Tower SE Cherry
+      // Sky Cloud Secret Stashes (Gummy Boots Playground):
+      { x: originX - 15, y: 15.5, z: originZ + 10, type: 'gem', value: 5 }, // Pink Cloud
+      { x: originX + 15, y: 19.5, z: originZ + 18, type: 'gem', value: 5 }, // Cyan Cloud
+      { x: originX, y: 23.5, z: originZ + 38, type: 'star', value: 10 }, // Buttercup Cloud
+      { x: originX + 22, y: 27.5, z: originZ + 55, type: 'star', value: 10 }, // Castle Sky Summit Cloud!
+      // Bouncy Gummy Mushrooms:
+      { x: originX - 35, y: 5.2, z: originZ + 20, type: 'gem', value: 5 },
+      { x: originX + 38, y: 5.5, z: originZ + 35, type: 'gem', value: 5 },
     ];
 
     const coinMatGold = new THREE.MeshStandardMaterial({
@@ -599,6 +1357,7 @@ export class CandyWorldBuilder {
         mesh: candyPortalGroup,
         ring: candyPortalRing,
       },
+      castleArenaCenter: castleCenter,
     };
   }
 }

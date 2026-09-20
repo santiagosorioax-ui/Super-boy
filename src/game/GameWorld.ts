@@ -4,6 +4,8 @@ import { soundEngine } from '../audio/soundEngine';
 import { ZombieSystem } from './ZombieSystem';
 import { CandyWorldBuilder, CandyWorldElements } from './CandyWorldBuilder';
 import { MayanBossSystem } from './MayanBossSystem';
+import { GummyBossSystem } from './GummyBossSystem';
+import { GummyCitizenManager } from './GummyCitizenManager';
 import { MayanTempleBuilder, MayanTempleElements } from './MayanTempleBuilder';
 import { WeatherSystem } from './WeatherSystem';
 import { createCustomAvatar, AvatarInstance, AvatarLimbs } from './AvatarCustomizer';
@@ -29,6 +31,7 @@ export interface WorldCallbacks {
   onPlayerDied?: (coinsLost: number) => void;
   onBossStateUpdate?: (state: MayanBossState) => void;
   onNearTemple?: (isNear: boolean, cost: number) => void;
+  onNearCandyPortal?: (isNear: boolean) => void;
   onSpendCoins?: (amount: number) => boolean;
   onAddCoins?: (amount: number) => void;
   onToast?: (message: string) => void;
@@ -91,6 +94,7 @@ export class GameWorld {
 
   // Weapon & Equipped Items
   private equippedSwordId: string | null = null;
+  private equippedBootsId: string | null = null;
   private tpSwordMesh: THREE.Group | null = null;
   private fpsWeaponHolder: THREE.Group | null = null;
   private isSwingingSword = false;
@@ -156,6 +160,11 @@ export class GameWorld {
   private mayanTempleElements: MayanTempleElements | null = null;
   private mayanBossSystem: MayanBossSystem | null = null;
   private isNearTempleEntrance = false;
+  private isNearCandyPortal = false;
+
+  // Candy World Gummy Boss & Citizens System
+  private gummyBossSystem: GummyBossSystem | null = null;
+  private gummyCitizenManager: GummyCitizenManager | null = null;
 
   // Grassy Mounds and Hills
   private mounds: { x: number; z: number; radius: number; height: number }[] = [
@@ -636,6 +645,34 @@ export class GameWorld {
     this.buildShopBuilding(608.0, 0.4, 588.0, 'candy');
     this.buildMultiplierShopBuilding(592.0, 0.4, 588.0, 'candy');
 
+    // 6.2 Gummy Boss System inside Chocolate Castle & Gummy Citizens in Candy World
+    this.gummyBossSystem = new GummyBossSystem(
+      this.scene,
+      this.candyWorldElements.castleArenaCenter,
+      {
+        onBossStateUpdate: (state) => this.callbacks.onBossStateUpdate?.(state),
+        onPlayerDamage: (amount, msg) => {
+          if (this.isPlayerDead || this.playerInvincibleTimer > 0 || (this.isVip && this.isGodMode)) return;
+          this.playerInvincibleTimer = 0.9;
+          this.playerHealth = Math.max(0, this.playerHealth - amount);
+          this.callbacks.onPlayerHealthUpdate?.(this.playerHealth, this.maxPlayerHealth);
+          this.callbacks.onPlayerHurt?.(msg);
+          this.triggerHaptic([40, 50, 70]);
+          if (this.playerHealth <= 0) {
+            this.isPlayerDead = true;
+            this.playerVel.set(0, 0, 0);
+            soundEngine.playPlayerDeathSound();
+            this.callbacks.onPlayerDied?.(this.playerHealth);
+          }
+        },
+        onAddCoins: (amount) => this.callbacks.onAddCoins?.(amount),
+        onToast: (msg) => this.callbacks.onToast?.(msg),
+      }
+    );
+    this.colliders.push(...this.gummyBossSystem.getColliders());
+
+    this.gummyCitizenManager = new GummyCitizenManager(this.scene, 600, 600);
+
     // 7. Initialize Zombies & Register Campfire Safe Zones
     this.zombieSystem = new ZombieSystem(
       this.scene,
@@ -670,6 +707,11 @@ export class GameWorld {
 
     // Add summit rock formations on prominent mounds, firmly anchored to the sculpted terrain
     this.mounds.forEach((mound, idx) => {
+      // Exclude rock near Candy Portal (portal is located at x: 18, z: -18)
+      if (Math.hypot(mound.x - 18, mound.z - (-18)) < 14) {
+        return;
+      }
+
       if (idx % 2 === 0) {
         const terrainY = this.getTerrainHeight(mound.x, mound.z);
         const boulderGeom = new THREE.DodecahedronGeometry(1.6, 0);
@@ -1305,6 +1347,82 @@ export class GameWorld {
       blade.position.y = 0.84;
       blade.castShadow = true;
       sword.add(blade);
+    } else if (swordId === 'candy_cane_blade') {
+      // Peppermint Candy Cane Blade
+      const handleGeom = new THREE.CylinderGeometry(0.035, 0.035, 0.35, 8);
+      const handleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+      const handle = new THREE.Mesh(handleGeom, handleMat);
+      handle.position.y = -0.15;
+      sword.add(handle);
+
+      const guardGeom = new THREE.CylinderGeometry(0.12, 0.12, 0.04, 16);
+      const guardMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 });
+      const guard = new THREE.Mesh(guardGeom, guardMat);
+      guard.position.y = 0.04;
+      sword.add(guard);
+
+      const bladeGeom = new THREE.BoxGeometry(0.09, 1.25, 0.04);
+      const bladeMat = new THREE.MeshStandardMaterial({
+        color: 0xfff1f2,
+        emissive: 0xf43f5e,
+        emissiveIntensity: 0.6,
+        roughness: 0.15,
+      });
+      const blade = new THREE.Mesh(bladeGeom, bladeMat);
+      blade.position.y = 0.7;
+      blade.castShadow = true;
+      sword.add(blade);
+    } else if (swordId === 'lollipop_warhammer') {
+      // Giant Swirling Lollipop Warhammer
+      const handleGeom = new THREE.CylinderGeometry(0.04, 0.04, 0.9, 8);
+      const handleMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.4 });
+      const handle = new THREE.Mesh(handleGeom, handleMat);
+      handle.position.y = 0.1;
+      sword.add(handle);
+
+      const headGeom = new THREE.CylinderGeometry(0.28, 0.28, 0.14, 24);
+      const headMat = new THREE.MeshStandardMaterial({
+        color: 0xec4899,
+        emissive: 0xdb2777,
+        emissiveIntensity: 0.7,
+        roughness: 0.2,
+      });
+      const head = new THREE.Mesh(headGeom, headMat);
+      head.rotation.x = Math.PI / 2;
+      head.position.y = 0.65;
+      head.castShadow = true;
+      sword.add(head);
+    } else if (swordId === 'choco_excalibur') {
+      // Royal Chocolate Excalibur with Golden Foil & Caramel Core
+      const handleGeom = new THREE.CylinderGeometry(0.04, 0.04, 0.4, 8);
+      const handleMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.8, roughness: 0.2 });
+      const handle = new THREE.Mesh(handleGeom, handleMat);
+      handle.position.y = -0.18;
+      sword.add(handle);
+
+      const pommelGeom = new THREE.SphereGeometry(0.07, 12, 12);
+      const pommelMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xd97706, emissiveIntensity: 0.8 });
+      const pommel = new THREE.Mesh(pommelGeom, pommelMat);
+      pommel.position.y = -0.4;
+      sword.add(pommel);
+
+      const guardGeom = new THREE.BoxGeometry(0.42, 0.08, 0.12);
+      const guardMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.4 });
+      const guard = new THREE.Mesh(guardGeom, guardMat);
+      guard.position.y = 0.05;
+      sword.add(guard);
+
+      const bladeGeom = new THREE.BoxGeometry(0.16, 1.4, 0.05);
+      const bladeMat = new THREE.MeshStandardMaterial({
+        color: 0x3e1d11,
+        emissive: 0x78350f,
+        emissiveIntensity: 0.5,
+        roughness: 0.25,
+      });
+      const blade = new THREE.Mesh(bladeGeom, bladeMat);
+      blade.position.y = 0.8;
+      blade.castShadow = true;
+      sword.add(blade);
     }
 
     return sword;
@@ -1572,6 +1690,7 @@ export class GameWorld {
     const occupiedZones: { x: number; z: number; radius: number }[] = [
       { x: 0, z: 0, radius: 12 }, // Central Plaza
       { x: 6.5, z: 2.0, radius: 6 }, // Shop & Merchant
+      { x: 18, z: -18, radius: 10 }, // Candy World Portal clearance (no trees or procedural rocks)
       // Trampolines
       { x: 0, z: -12, radius: 4 },
       { x: 24, z: 18, radius: 4 },
@@ -2123,9 +2242,11 @@ export class GameWorld {
       this.jump();
     }
 
-    // Interact with Shop / Temple / Campfire
+    // Interact with Shop / Temple / Candy Portal / Campfire
     if (e.code === 'KeyE' || e.key === 'e' || e.key === 'E') {
-      if (this.isNearTempleEntrance) {
+      if (this.isNearCandyPortal) {
+        this.tryEnterCandyWorld();
+      } else if (this.isNearTempleEntrance) {
         this.tryEnterMayanTemple();
       } else if (this.isNearShop) {
         this.callbacks.onOpenShop?.();
@@ -2336,13 +2457,18 @@ export class GameWorld {
       let jumpMult = 1.0;
       if (this.equippedSwordId === 'fire_greatsword') jumpMult *= 1.3;
       if (this.equippedSwordId === 'god_blade') jumpMult *= 1.8;
+      if (this.equippedBootsId === 'gummy_boots') jumpMult *= 2.2;
       if (this.isVip && this.superJump) jumpMult *= 1.9;
       if (this.buffs.jumpTimeRemaining > 0) jumpMult *= this.buffs.jumpMultiplier;
 
       this.playerVel.y = 9.5 * jumpMult;
       this.isOnGround = false;
       this.triggerHaptic(12);
-      soundEngine.playJumpSound();
+      if (this.equippedBootsId === 'gummy_boots') {
+        soundEngine.playGummyBounceSound();
+      } else {
+        soundEngine.playJumpSound();
+      }
       this.callbacks.onJump();
     }
   }
@@ -2407,6 +2533,20 @@ export class GameWorld {
     return this.equippedSwordId;
   }
 
+  public setEquippedBoots(bootsId: string | null) {
+    this.equippedBootsId = bootsId;
+    if (bootsId === 'gummy_boots') {
+      soundEngine.playGummyBounceSound();
+      this.callbacks.onToast?.('👟 ¡Botas de Gomita equipadas! ¡Ahora saltas súper alto!');
+    } else {
+      this.callbacks.onToast?.('👟 Botas desequipadas');
+    }
+  }
+
+  public getEquippedBootsId(): string | null {
+    return this.equippedBootsId;
+  }
+
   public isPlayerNearShop(): boolean {
     return this.isNearShop;
   }
@@ -2469,9 +2609,19 @@ export class GameWorld {
     this.camera.getWorldDirection(lookDir);
 
     // Check hit against zombies or boss
-    const damage = this.equippedSwordId === 'god_blade' ? 10 : this.equippedSwordId === 'neon_katana' ? 3 : this.equippedSwordId === 'fire_greatsword' ? 2 : 1;
+    let damage = 1;
+    if (this.equippedSwordId === 'god_blade') damage = 10;
+    else if (this.equippedSwordId === 'choco_excalibur') damage = 7;
+    else if (this.equippedSwordId === 'lollipop_warhammer') damage = 5;
+    else if (this.equippedSwordId === 'candy_cane_blade') damage = 4;
+    else if (this.equippedSwordId === 'neon_katana') damage = 3;
+    else if (this.equippedSwordId === 'fire_greatsword') damage = 2;
+
     if (this.currentWorld === 'mayan_boss') {
       this.mayanBossSystem?.checkSwordHit(this.playerPos, lookDir, damage);
+    } else if (this.currentWorld === 'candy') {
+      this.gummyBossSystem?.checkSwordHit(this.playerPos, lookDir, damage);
+      this.zombieSystem?.checkSwordHit(this.playerPos, lookDir, damage, this.currentWorld);
     } else {
       this.zombieSystem?.checkSwordHit(this.playerPos, lookDir, damage, this.currentWorld);
     }
@@ -2483,6 +2633,14 @@ export class GameWorld {
     soundEngine.playTempleGateOpenSound();
     this.teleportToWorld('mayan_boss');
     this.callbacks.onToast?.('🏛️ ¡Entraste al Interior del Templo Maya! ¡Derrota al Rey Zombi!');
+    return true;
+  }
+
+  public tryEnterCandyWorld(): boolean {
+    if (this.currentWorld === 'candy') return false;
+
+    this.teleportToWorld('candy');
+    this.callbacks.onToast?.('🍭 ¡Entraste al Mundo Caramelo! ¡Explora el Reino y el Castillo!');
     return true;
   }
 
@@ -2848,9 +3006,13 @@ export class GameWorld {
     // 4. Compute Speed with Sword & Buff Bonuses & Weather
     let speedBonus = 1.0;
     if (this.equippedSwordId === 'wood_sword') speedBonus *= 1.15;
+    if (this.equippedSwordId === 'candy_cane_blade') speedBonus *= 1.3;
     if (this.equippedSwordId === 'neon_katana') speedBonus *= 1.35;
+    if (this.equippedSwordId === 'lollipop_warhammer') speedBonus *= 1.25;
     if (this.equippedSwordId === 'fire_greatsword') speedBonus *= 1.5;
+    if (this.equippedSwordId === 'choco_excalibur') speedBonus *= 1.65;
     if (this.equippedSwordId === 'god_blade') speedBonus *= 2.0;
+    if (this.equippedBootsId === 'gummy_boots') speedBonus *= 1.25;
     if (this.isVip && this.superSpeed) speedBonus *= 1.9;
     if (this.buffs.speedTimeRemaining > 0) speedBonus *= this.buffs.speedMultiplier;
 
@@ -3046,18 +3208,29 @@ export class GameWorld {
       }
     }
 
-    // 6. Spring Trampoline Pads Check
+    // 6. Spring Trampoline Pads Check (Los trampolines son gomitas)
     for (const spring of this.springPads) {
       const dist = Math.hypot(this.playerPos.x - spring.pos.x, this.playerPos.z - spring.pos.z);
-      if (dist < spring.radius && Math.abs(this.playerPos.y - spring.topY) < 0.8) {
-        this.playerVel.y = 19.5;
+      if (dist < spring.radius && Math.abs(this.playerPos.y - spring.topY) < 1.0) {
+        const isCandy = this.currentWorld === 'candy';
+        const hasGummyBoots = this.equippedBootsId === 'gummy_boots';
+        let bouncePower = 19.5;
+        if (isCandy && hasGummyBoots) bouncePower = 29.0;
+        else if (isCandy) bouncePower = 24.5;
+        else if (hasGummyBoots) bouncePower = 24.0;
+
+        this.playerVel.y = bouncePower;
         this.isOnGround = false;
         this.triggerHaptic([20, 30, 20]);
-        soundEngine.playSpringPadSound();
+        if (isCandy || hasGummyBoots) {
+          soundEngine.playGummyBounceSound();
+        } else {
+          soundEngine.playSpringPadSound();
+        }
         this.callbacks.onSpring();
 
-        spring.mesh.scale.set(1.2, 0.4, 1.2);
-        setTimeout(() => spring.mesh.scale.set(1, 1, 1), 150);
+        spring.mesh.scale.set(1.25, 0.4, 1.25);
+        setTimeout(() => spring.mesh.scale.set(1, 1, 1), 180);
         break;
       }
     }
@@ -3115,7 +3288,7 @@ export class GameWorld {
       }
     }
 
-    // 11. Portal Energy Rings & Teleportation (Direct Gateway to Mayan Temple)
+    // 11. Portal Energy Rings & Teleportation (Gateway to Candy World)
     if (this.candyWorldElements) {
       this.candyWorldElements.mainPortal.ring.rotation.z += 2.2 * dt;
       this.candyWorldElements.candyPortal.ring.rotation.z += 2.2 * dt;
@@ -3128,16 +3301,30 @@ export class GameWorld {
             this.playerPos.x - this.candyWorldElements.mainPortal.pos.x,
             this.playerPos.z - this.candyWorldElements.mainPortal.pos.z
           );
-          if (horizDist < 4.2 && Math.abs(this.playerPos.y - this.candyWorldElements.mainPortal.pos.y) < 6.0) {
-            this.teleportToWorld('mayan_boss');
+          const nearCandy = horizDist < 4.8 && Math.abs(this.playerPos.y - this.candyWorldElements.mainPortal.pos.y) < 5.0;
+          if (nearCandy !== this.isNearCandyPortal) {
+            this.isNearCandyPortal = nearCandy;
+            this.callbacks.onNearCandyPortal?.(nearCandy);
+          }
+          if (horizDist < 3.6 && Math.abs(this.playerPos.y - this.candyWorldElements.mainPortal.pos.y) < 5.0) {
+            this.teleportToWorld('candy');
           }
         } else if (this.currentWorld === 'candy') {
+          if (this.isNearCandyPortal) {
+            this.isNearCandyPortal = false;
+            this.callbacks.onNearCandyPortal?.(false);
+          }
           const horizDist = Math.hypot(
             this.playerPos.x - this.candyWorldElements.candyPortal.pos.x,
             this.playerPos.z - this.candyWorldElements.candyPortal.pos.z
           );
-          if (horizDist < 4.2 && Math.abs(this.playerPos.y - this.candyWorldElements.candyPortal.pos.y) < 6.0) {
+          if (horizDist < 3.6 && Math.abs(this.playerPos.y - this.candyWorldElements.candyPortal.pos.y) < 5.0) {
             this.teleportToWorld('main');
+          }
+        } else {
+          if (this.isNearCandyPortal) {
+            this.isNearCandyPortal = false;
+            this.callbacks.onNearCandyPortal?.(false);
           }
         }
       }
@@ -3181,6 +3368,16 @@ export class GameWorld {
         if (distToExit < 2.8 && Math.abs(this.playerPos.y - exitPos.y) < 3.5) {
           this.teleportToWorld('main');
         }
+      }
+    }
+
+    // 11.2.2 Gummy Boss System & Gummy Citizens in Candy World
+    if (this.currentWorld === 'candy') {
+      if (this.gummyBossSystem) {
+        this.gummyBossSystem.update(dt, this.playerPos, this.currentWorld);
+      }
+      if (this.gummyCitizenManager) {
+        this.gummyCitizenManager.update(dt, this.playerPos, this.currentWorld);
       }
     }
 
@@ -3350,17 +3547,30 @@ export class GameWorld {
       this.hemiLight.intensity = 1.2;
       this.sunMesh.material = new THREE.MeshBasicMaterial({ color: 0xfde047 });
 
+      this.gummyBossSystem?.resetBoss();
       this.callbacks.onWorldChange?.('candy');
       this.spawnSlashParticles(this.playerPos.clone(), 0xf43f5e, 45);
     } else {
       // Returning to main world
+      this.callbacks.onBossStateUpdate?.({
+        active: false,
+        health: 0,
+        maxHealth: 1,
+        phase: 'intro',
+        tiredTimeRemaining: 0,
+        isInvulnerable: false,
+      });
       if (prevWorld === 'mayan_boss' && this.mayanTempleElements) {
         // Place player safely outside the temple portal at the pyramid summit facing down the stairs
         this.playerPos.copy(this.mayanTempleElements.portalPos).add(new THREE.Vector3(0, 0, 4.5));
         this.yaw = 0;
+      } else if (prevWorld === 'candy' && this.candyWorldElements) {
+        // Place player safely in front of the Candy World portal in the main valley
+        this.playerPos.copy(this.candyWorldElements.mainPortal.pos).add(new THREE.Vector3(0, 0.2, 4.2));
+        this.yaw = 0;
       } else {
-        const groundH = this.getTerrainHeight(0, -56);
-        this.playerPos.set(0, groundH + 1.2, -56);
+        const groundH = this.getTerrainHeight(0, 0);
+        this.playerPos.set(0, groundH + 1.2, 0);
         this.yaw = 0;
       }
       this.playerVel.set(0, 0, 0);

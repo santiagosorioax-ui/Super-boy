@@ -9,17 +9,33 @@ export interface LoadingScreenProps {
   subtitle?: string;
   isWorldReady?: boolean;
   onFinish: () => void;
+  durationMs?: number;
   minDurationMs?: number;
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   isOpen,
   target,
+  title,
+  subtitle,
   isWorldReady = true,
   onFinish,
-  minDurationMs = 450,
+  durationMs,
+  minDurationMs,
 }) => {
   const currentTarget: TransitionTarget = target ?? 'game_start';
+
+  // Specific durations required by user:
+  // - Start game: 15s
+  // - Enter structure: 5s
+  // - Enter world: 10s
+  const effectiveDuration = useMemo(() => {
+    if (durationMs && durationMs > 0) return durationMs;
+    if (minDurationMs && minDurationMs !== 20000 && minDurationMs > 0) return minDurationMs;
+    if (currentTarget === 'game_start') return 15000;
+    if (currentTarget === 'structure') return 5000;
+    return 10000; // 'candy' | 'mayan_boss' | 'main'
+  }, [durationMs, minDurationMs, currentTarget]);
 
   // Stable ref for onFinish to prevent infinite loop or resets on parent re-renders
   const onFinishRef = useRef(onFinish);
@@ -37,6 +53,13 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const [progress, setProgress] = useState(0);
   const [canSkip, setCanSkip] = useState(false);
 
+  // Dynamic slide rotation interval scaled to loading duration
+  const rotationInterval = useMemo(() => {
+    if (effectiveDuration <= 6000) return 2200;
+    if (effectiveDuration <= 11000) return 3200;
+    return 4000;
+  }, [effectiveDuration]);
+
   // Reset states when opened
   useEffect(() => {
     if (isOpen) {
@@ -46,28 +69,18 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     }
   }, [isOpen]);
 
-  // Allow instant skip with keyboard (Space, Enter, WASD, Esc)
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      onFinishRef.current();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
-
-  // Rotate images & tips
+  // Rotate images & tips dynamically during the loading period
   useEffect(() => {
     if (!isOpen || slides.length <= 1) return;
 
     const slideTimer = setInterval(() => {
       setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
-    }, 4000);
+    }, rotationInterval);
 
     return () => clearInterval(slideTimer);
-  }, [isOpen, slides.length]);
+  }, [isOpen, slides.length, rotationInterval]);
 
-  // Robust progress timer: connects to world readiness and finishes smoothly
+  // Progress timer: smoothly scales from 0% to 100% over the exact duration
   useEffect(() => {
     if (!isOpen) {
       setProgress(0);
@@ -79,49 +92,40 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const timeRatio = Math.min(1, elapsed / minDurationMs);
-      const worldReady = isWorldReadyRef.current;
+      const timeRatio = Math.min(1, elapsed / effectiveDuration);
 
-      let nextProgress: number;
-
-      if (worldReady) {
-        // When world is ready, progress advances steadily to 100%
-        nextProgress = Math.min(100, Math.round(10 + timeRatio * 90));
-      } else {
-        // If world is still initializing, cap at 85% until world reports ready
-        nextProgress = Math.min(85, Math.round(10 + timeRatio * 75));
-      }
-
-      // Hard timeout fallback: after 1.5 seconds, force 100%
-      if (elapsed >= 1500) {
-        nextProgress = 100;
-      }
-
+      // Smooth percentage progression 0 -> 100%
+      const nextProgress = Math.min(100, Math.round(timeRatio * 100));
       setProgress(nextProgress);
 
-      if (elapsed > 150 || worldReady) {
+      if (elapsed > 1000) {
         setCanSkip(true);
       }
 
-      if (nextProgress >= 100 && !hasCompleted) {
+      if (elapsed >= effectiveDuration && !hasCompleted) {
         hasCompleted = true;
         clearInterval(interval);
         setTimeout(() => {
           onFinishRef.current();
-        }, 80);
+        }, 100);
       }
-    }, 30);
+    }, 40);
 
     return () => clearInterval(interval);
-  }, [isOpen, minDurationMs]);
+  }, [isOpen, effectiveDuration]);
+
+  const statusLabel = useMemo(() => {
+    if (progress >= 100) return '¡Listo para Jugar!';
+    if (currentTarget === 'structure') return 'Cargando Estructura...';
+    if (currentTarget === 'game_start') return 'Iniciando Super Boy 3D...';
+    if (currentTarget === 'candy') return 'Cargando Mundo Caramelo...';
+    if (currentTarget === 'mayan_boss') return 'Cargando Templo Maya...';
+    return 'Cargando Mundo...';
+  }, [progress, currentTarget]);
 
   if (!isOpen) return null;
 
   const currentSlide = slides[currentSlideIndex] || slides[0];
-
-  const handleManualDismiss = () => {
-    onFinishRef.current();
-  };
 
   return (
     <AnimatePresence>
@@ -131,9 +135,21 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.35 }}
-        onClick={handleManualDismiss}
-        className="fixed inset-0 z-[99999] w-screen h-screen overflow-hidden select-none cursor-pointer flex flex-col justify-end"
+        className="fixed inset-0 z-[99999] w-screen h-screen overflow-hidden select-none flex flex-col justify-end"
       >
+        {/* Skip button in top right corner */}
+        {canSkip && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFinishRef.current();
+            }}
+            className="absolute top-4 right-4 z-20 px-3.5 py-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white/90 hover:text-white border border-white/20 text-xs font-bold tracking-wide backdrop-blur-md transition-all shadow-lg active:scale-95"
+          >
+            Saltar ⏭️
+          </button>
+        )}
         {/* 1. Fullscreen 2D Cartoon Background Image with Smooth Crossfade */}
         <div className="absolute inset-0 w-full h-full bg-slate-950 overflow-hidden">
           <AnimatePresence mode="wait">
@@ -154,8 +170,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/10 pointer-events-none" />
         </div>
 
-        {/* Bottom Control Strip: Only Tip, Percentage, and Progress Bar */}
-        <div className="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-8 pb-6 sm:pb-8 flex flex-col items-center gap-3.5">
+        {/* Bottom Control Strip: Title Badge, Tip, Percentage, and Progress Bar */}
+        <div className="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-8 pb-6 sm:pb-8 flex flex-col items-center gap-3">
+          {title && (
+            <div className="px-4 py-1 rounded-full bg-black/75 backdrop-blur-md border border-amber-400/30 text-[11px] sm:text-xs font-black text-amber-300 tracking-widest uppercase shadow-lg">
+              {title}
+            </div>
+          )}
+
           {/* 2. El Tip */}
           <AnimatePresence mode="wait">
             <motion.div
@@ -177,7 +199,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             <div className="flex justify-between items-center text-xs sm:text-sm font-black px-1">
               <span className="text-amber-300 drop-shadow flex items-center gap-1.5 uppercase tracking-wider">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
-                {progress >= 100 ? '¡Listo!' : 'Cargando Mundo...'}
+                {statusLabel}
               </span>
               {/* El Porcentaje */}
               <span className="text-amber-400 text-base sm:text-lg font-black tracking-wider drop-shadow">

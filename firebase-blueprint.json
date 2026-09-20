@@ -54,6 +54,22 @@
           "type": "number",
           "description": "Total zombies defeated"
         },
+        "claimedAchievementIds": {
+          "type": "array",
+          "description": "List of claimed achievement IDs"
+        },
+        "lifetimeCoinsCollected": {
+          "type": "number",
+          "description": "Lifetime total coins earned"
+        },
+        "totalJumps": {
+          "type": "number",
+          "description": "Total jumps executed"
+        },
+        "bossDefeatedCount": {
+          "type": "number",
+          "description": "Count of times Mayan Boss was defeated"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",

@@ -7,6 +7,12 @@ export interface MayanBossState {
   phase: 'intro' | 'attacking' | 'tired' | 'defeated';
   tiredTimeRemaining: number;
   isInvulnerable: boolean;
+  isTired?: boolean;
+  statusMessage?: string;
+  bossName?: string;
+  bossIcon?: string;
+  bossThemeColor?: string;
+  arenaName?: string;
 }
 
 export type ControlDevice = 'pc' | 'mobile';
@@ -25,7 +31,7 @@ export interface GameSettings {
   controlMode?: ControlDevice;
 }
 
-export type ItemCategory = 'sword' | 'drink' | 'upgrade' | 'multiplier';
+export type ItemCategory = 'sword' | 'drink' | 'boots' | 'upgrade' | 'multiplier';
 
 export interface ShopItem {
   id: string;
@@ -36,11 +42,13 @@ export interface ShopItem {
   icon: string;
   color: string;
   badge?: string;
+  world?: WorldDimension;
   // Stats & Buffs
   durationSec?: number;
   speedMultiplier?: number;
   jumpMultiplier?: number;
   magnetRadius?: number;
+  damage?: number;
 }
 
 export interface MultiplierTier {
@@ -66,7 +74,7 @@ export interface PlayerBuffs {
 export interface UserProfile {
   email: string;
   username: string;
-  role: 'admin_unlimited' | 'standard';
+  role: 'admin_unlimited' | 'standard' | 'user';
   isUnlimited: boolean;
   infiniteCoins: boolean;
   isGodMode: boolean; // Invincible to zombie & boss hits
@@ -83,6 +91,8 @@ export interface PlayerInventory {
   maxHealth: number; // 5
   ownedSwordIds: string[];
   equippedSwordId: string | null;
+  hasGummyBoots?: boolean;
+  equippedBootsId?: string | null;
   activeBuffs: PlayerBuffs;
   playerMultiplier: number;
   unlockedMultipliers: number[];
@@ -166,4 +176,20 @@ export interface PlayerCustomization {
   equipped: EquippedClothing;
   ownedItemIds: string[];
 }
+
+export type AchievementCategory = 'all' | 'combat' | 'collection' | 'exploration' | 'bosses';
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  category: 'combat' | 'collection' | 'exploration' | 'bosses';
+  target: number;
+  current: number;
+  rewardCoins: number;
+  isUnlocked: boolean;
+  isClaimed: boolean;
+}
+
 

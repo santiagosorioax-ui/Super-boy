@@ -9,14 +9,20 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-// Register PWA service worker
-if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.log('SW registration error:', err);
+// Register PWA service worker in production, unregister in dev to avoid stale preview cache
+if ('serviceWorker' in navigator) {
+  if (import.meta.env.PROD) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.log('SW registration error:', err);
+      });
     });
-  });
-} else if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {});
+  } else {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const reg of registrations) {
+        reg.unregister();
+      }
+    });
+  }
 }
 

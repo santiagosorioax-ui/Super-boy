@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { GameWorld } from './game/GameWorld';
 import { soundEngine } from './audio/soundEngine';
 import { CoinData, GameSettings, TimeState, PlayerInventory, ShopItem, WorldDimension, MayanBossState, MultiplierTier, ControlDevice, UserProfile, WeatherState, WeatherType } from './types';
@@ -20,6 +20,13 @@ import { LeaderboardModal } from './components/LeaderboardModal';
 import { VipProfileModal } from './components/VipProfileModal';
 import { WardrobeModal } from './components/WardrobeModal';
 import { InstallPromptModal } from './components/InstallPromptModal';
+import { AchievementsModal } from './components/AchievementsModal';
+import {
+  ACHIEVEMENTS_LIST,
+  PlayerAchievementStats,
+  getAchievementStatus,
+  getUnclaimedAchievementsCount,
+} from './achievements/achievementsData';
 import { DEFAULT_CUSTOMIZATION } from './data/clothingCatalog';
 import { PlayerCustomization } from './types';
 import { auth, googleProvider } from './firebase/config';
@@ -43,7 +50,7 @@ export default function App() {
   const [vipProfile, setVipProfile] = useState<UserProfile>({
     email: '',
     username: 'Jugador',
-    role: 'user',
+    role: 'standard',
     isUnlimited: false,
     infiniteCoins: false,
     isGodMode: false,
@@ -63,6 +70,7 @@ export default function App() {
     target?: WorldDimension | 'game_start' | 'structure';
     title?: string;
     subtitle?: string;
+    durationMs?: number;
     onComplete?: () => void;
   }>({
     isOpen: false,
@@ -182,6 +190,7 @@ export default function App() {
   const [isMultiplierShopOpen, setIsMultiplierShopOpen] = useState(false);
   const [isNearMultiplierShop, setIsNearMultiplierShop] = useState(false);
   const [isNearTemple, setIsNearTemple] = useState(false);
+  const [isNearCandyPortal, setIsNearCandyPortal] = useState(false);
   const [isNearCampfire, setIsNearCampfire] = useState(false);
   const [templeCost, setTempleCost] = useState(500);
   const [bossState, setBossState] = useState<MayanBossState | null>(null);
@@ -226,6 +235,60 @@ export default function App() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isDeathModalOpen, setIsDeathModalOpen] = useState(false);
   const [coinsLostOnDeath, setCoinsLostOnDeath] = useState(0);
+  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+
+  // Achievements & Milestone Tracking
+  const [claimedAchievementIds, setClaimedAchievementIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('superboy_achievements');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.claimed)) return parsed.claimed;
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [lifetimeCoinsCollected, setLifetimeCoinsCollected] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('superboy_achievements');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.lifetimeCoins === 'number') return parsed.lifetimeCoins;
+      }
+    } catch (e) {}
+    return 0;
+  });
+  const [totalJumps, setTotalJumps] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('superboy_achievements');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.totalJumps === 'number') return parsed.totalJumps;
+      }
+    } catch (e) {}
+    return 0;
+  });
+  const [bossDefeatedCount, setBossDefeatedCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('superboy_achievements');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.bossDefeatedCount === 'number') return parsed.bossDefeatedCount;
+      }
+    } catch (e) {}
+    return 0;
+  });
+  const [visitedCandyLand, setVisitedCandyLand] = useState(false);
+  const [visitedMayanTemple, setVisitedMayanTemple] = useState(false);
+  const [gummyBossDefeated, setGummyBossDefeated] = useState(false);
+  const [gummyBouncesCount, setGummyBouncesCount] = useState(0);
+  const [hasCustomizedOutfit, setHasCustomizedOutfit] = useState(() => {
+    try {
+      return Boolean(localStorage.getItem('superboy_customization'));
+    } catch (e) {
+      return false;
+    }
+  });
 
   // Settings
   const [settings, setSettings] = useState<GameSettings>({
@@ -360,7 +423,7 @@ export default function App() {
         setVipProfile({
           email: user.email || '',
           username: user.displayName || 'Jugador',
-          role: 'user',
+          role: 'standard',
           isUnlimited: false,
           infiniteCoins: false,
           isGodMode: false,
@@ -408,6 +471,20 @@ export default function App() {
             }
             if (saved.zombiesDefeated) {
               setZombiesDefeated(saved.zombiesDefeated);
+            }
+            if (Array.isArray(saved.claimedAchievementIds)) {
+              setClaimedAchievementIds(saved.claimedAchievementIds);
+            }
+            if (typeof saved.lifetimeCoinsCollected === 'number') {
+              setLifetimeCoinsCollected(saved.lifetimeCoinsCollected);
+            } else if (cleanCoins > 0) {
+              setLifetimeCoinsCollected(cleanCoins);
+            }
+            if (typeof saved.totalJumps === 'number') {
+              setTotalJumps(saved.totalJumps);
+            }
+            if (typeof saved.bossDefeatedCount === 'number') {
+              setBossDefeatedCount(saved.bossDefeatedCount);
             }
             if (saved.customization) {
               setCustomization(saved.customization);
@@ -460,7 +537,7 @@ export default function App() {
         setVipProfile({
           email: '',
           username: 'Jugador',
-          role: 'user',
+          role: 'standard',
           isUnlimited: false,
           infiniteCoins: false,
           isGodMode: false,
@@ -507,6 +584,7 @@ export default function App() {
     setCustomization(newCust);
     try {
       localStorage.setItem('superboy_customization', JSON.stringify(newCust));
+      setHasCustomizedOutfit(true);
     } catch (e) {}
     if (worldRef.current) {
       worldRef.current.setCustomization(newCust);
@@ -534,17 +612,160 @@ export default function App() {
     }
   };
 
+  // Build aggregate achievement stats for real-time evaluations
+  const achievementStats: PlayerAchievementStats = useMemo(() => ({
+    zombiesDefeated,
+    lifetimeCoinsCollected: Math.max(lifetimeCoinsCollected, inventory.coins),
+    currentCoins: inventory.coins,
+    totalJumps,
+    bossDefeatedCount,
+    gummyBossDefeated,
+    hasGummyBoots: Boolean(inventory.hasGummyBoots || inventory.equippedBootsId === 'gummy_boots'),
+    gummyBounces: gummyBouncesCount,
+    visitedCandyLand,
+    visitedMayanTemple,
+    ownedSwordsCount: inventory.ownedSwordIds.length,
+    hasCustomizedOutfit,
+    highestMultiplier: Math.max(inventory.playerMultiplier, ...(inventory.unlockedMultipliers || [1])),
+    claimedAchievementIds,
+  }), [
+    zombiesDefeated,
+    lifetimeCoinsCollected,
+    inventory.coins,
+    inventory.hasGummyBoots,
+    inventory.equippedBootsId,
+    totalJumps,
+    bossDefeatedCount,
+    gummyBossDefeated,
+    gummyBouncesCount,
+    visitedCandyLand,
+    visitedMayanTemple,
+    inventory.ownedSwordIds.length,
+    hasCustomizedOutfit,
+    inventory.playerMultiplier,
+    inventory.unlockedMultipliers,
+    claimedAchievementIds,
+  ]);
+
+  const unclaimedAchievementsCount = useMemo(() => {
+    return getUnclaimedAchievementsCount(achievementStats);
+  }, [achievementStats]);
+
+  // Persist achievements stats locally
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'superboy_achievements',
+        JSON.stringify({
+          claimed: claimedAchievementIds,
+          lifetimeCoins: Math.max(lifetimeCoinsCollected, inventory.coins),
+          totalJumps,
+          bossDefeatedCount,
+        })
+      );
+    } catch (e) {}
+  }, [claimedAchievementIds, lifetimeCoinsCollected, inventory.coins, totalJumps, bossDefeatedCount]);
+
+  // Milestone Notification System: Detect when a milestone is newly unlocked
+  const previousUnlockedIdsRef = useRef<Set<string>>(new Set());
+  const isInitialAchievementCheck = useRef(true);
+
+  useEffect(() => {
+    const currentlyUnlocked = new Set<string>();
+    ACHIEVEMENTS_LIST.forEach((ach) => {
+      const status = getAchievementStatus(ach, achievementStats);
+      if (status.isUnlocked) {
+        currentlyUnlocked.add(ach.id);
+        if (!isInitialAchievementCheck.current && !previousUnlockedIdsRef.current.has(ach.id)) {
+          soundEngine.playVictoryFanfare();
+          showToast(`🏅 ¡Hito Alcanzado: "${ach.title}"! Reclama +${ach.rewardCoins.toLocaleString()} 🪙 en LOGROS`);
+        }
+      }
+    });
+
+    previousUnlockedIdsRef.current = currentlyUnlocked;
+    if (isInitialAchievementCheck.current) {
+      isInitialAchievementCheck.current = false;
+    }
+  }, [achievementStats, showToast]);
+
+  // Claim single achievement reward
+  const handleClaimAchievementReward = useCallback((achievementId: string, rewardCoins: number) => {
+    const ach = ACHIEVEMENTS_LIST.find((a) => a.id === achievementId);
+    setClaimedAchievementIds((prev) => {
+      if (prev.includes(achievementId)) return prev;
+      return [...prev, achievementId];
+    });
+
+    setInventory((prev) => ({
+      ...prev,
+      coins: prev.coins + rewardCoins,
+    }));
+    setScore((prev) => prev + rewardCoins);
+    showToast(`🎁 ¡Reclamaste +${rewardCoins.toLocaleString()} 🪙 por "${ach?.title || 'Logro'}"!`);
+  }, [showToast]);
+
+  // Claim all available achievement rewards at once
+  const handleClaimAllAchievements = useCallback((claimList: { id: string; rewardCoins: number }[]) => {
+    const totalReward = claimList.reduce((acc, c) => acc + c.rewardCoins, 0);
+    const newIds = claimList.map((c) => c.id);
+
+    setClaimedAchievementIds((prev) => {
+      const merged = new Set([...prev, ...newIds]);
+      return Array.from(merged);
+    });
+
+    setInventory((prev) => ({
+      ...prev,
+      coins: prev.coins + totalReward,
+    }));
+    setScore((prev) => prev + totalReward);
+    showToast(`🎁 ¡Reclamaste un total de +${totalReward.toLocaleString()} 🪙 por ${claimList.length} logros!`);
+  }, [showToast]);
+
   // Cloud Auto-Save Debounce whenever stats change
   useEffect(() => {
     if (currentUser) {
       const timeout = setTimeout(() => {
-        saveUserProgress(bestScore, inventory, zombiesDefeated, customization).catch((err) => {
+        saveUserProgress(bestScore, inventory, zombiesDefeated, customization, {
+          claimedAchievementIds,
+          lifetimeCoinsCollected: Math.max(lifetimeCoinsCollected, inventory.coins),
+          totalJumps,
+          bossDefeatedCount,
+        }).catch((err) => {
           console.warn('Auto-save error:', err);
         });
       }, 2000);
       return () => clearTimeout(timeout);
     }
-  }, [currentUser, bestScore, inventory.coins, inventory.equippedSwordId, inventory.playerMultiplier, zombiesDefeated, customization]);
+  }, [currentUser, bestScore, inventory.coins, inventory.equippedSwordId, inventory.playerMultiplier, zombiesDefeated, customization, claimedAchievementIds, lifetimeCoinsCollected, totalJumps, bossDefeatedCount]);
+
+  // Enter structure with 5-second loading screen
+  const handleOpenShop = useCallback(() => {
+    setLoadingState({
+      isOpen: true,
+      target: 'structure',
+      durationMs: 5000, // 5 segundos al entrar a una estructura
+      title: '🗡️ TIENDA DE ESPADAS (5s)',
+      subtitle: 'Entrando a la herrería mística...',
+      onComplete: () => {
+        setIsShopOpen(true);
+      },
+    });
+  }, []);
+
+  const handleOpenMultiplierShop = useCallback(() => {
+    setLoadingState({
+      isOpen: true,
+      target: 'structure',
+      durationMs: 5000, // 5 segundos al entrar a una estructura
+      title: '⚡ TIENDA DE MULTIPLICADORES (5s)',
+      subtitle: 'Entrando al santuario de multiplicadores...',
+      onComplete: () => {
+        setIsMultiplierShopOpen(true);
+      },
+    });
+  }, []);
 
   // Initialize Game World
   useEffect(() => {
@@ -558,6 +779,7 @@ export default function App() {
         setCollectedCoins(total - remaining);
         setTotalCoins(total);
         setCombo(currentCombo);
+        setLifetimeCoinsCollected((prev) => prev + pointsEarned);
 
         setInventory((prev) => ({
           ...prev,
@@ -576,10 +798,12 @@ export default function App() {
         setWeatherState(newWeather);
       },
       onJump: () => {
-        // Jump triggered
+        setTotalJumps((prev) => prev + 1);
       },
       onSpring: () => {
-        showToast('🚀 ¡Súper Salto de Trampolín!');
+        setTotalJumps((prev) => prev + 1);
+        setGummyBouncesCount((prev) => prev + 1);
+        showToast('🚀 ¡Súper Salto de Trampolín de Gomita!');
       },
       onFpsUpdate: (newFps: number) => {
         setFps(newFps);
@@ -588,17 +812,20 @@ export default function App() {
         setIsNearShop(near);
       },
       onOpenShop: () => {
-        setIsShopOpen(true);
+        handleOpenShop();
       },
       onNearMultiplierShop: (near: boolean) => {
         setIsNearMultiplierShop(near);
       },
       onOpenMultiplierShop: () => {
-        setIsMultiplierShopOpen(true);
+        handleOpenMultiplierShop();
       },
       onNearTemple: (near: boolean, cost: number) => {
         setIsNearTemple(near);
         setTempleCost(cost);
+      },
+      onNearCandyPortal: (near: boolean) => {
+        setIsNearCandyPortal(near);
       },
       onNearCampfire: (near: boolean) => {
         setIsNearCampfire(near);
@@ -613,9 +840,16 @@ export default function App() {
       onAddCoins: (amount: number) => {
         setScore((prev) => prev + amount);
         setInventory((prev) => ({ ...prev, coins: prev.coins + amount }));
+        setLifetimeCoinsCollected((prev) => prev + amount);
       },
       onBossStateUpdate: (state: MayanBossState) => {
         setBossState(state);
+        if (state.phase === 'defeated') {
+          setBossDefeatedCount((prev) => Math.max(1, prev + 1));
+          if (state.bossName?.toLowerCase().includes('gomita') || state.bossName?.toLowerCase().includes('oso')) {
+            setGummyBossDefeated(true);
+          }
+        }
       },
       onToast: (msg: string) => {
         showToast(msg);
@@ -634,10 +868,28 @@ export default function App() {
       onWorldChange: (newWorld) => {
         setCurrentDimension(newWorld);
         soundEngine.setDimension(newWorld);
+        if (newWorld === 'candy') {
+          setVisitedCandyLand(true);
+        } else if (newWorld === 'mayan_boss') {
+          setVisitedMayanTemple(true);
+        }
 
         setLoadingState({
           isOpen: true,
           target: newWorld,
+          durationMs: 10000, // 10 segundos al entrar a un mundo
+          title:
+            newWorld === 'candy'
+              ? '🍭 VIAJANDO AL MUNDO CARAMELO (10s)'
+              : newWorld === 'mayan_boss'
+              ? '🏛️ ENTRANDO AL TEMPLO MAYA (10s)'
+              : '🌿 REGRESANDO AL VALLE PRINCIPAL (10s)',
+          subtitle:
+            newWorld === 'candy'
+              ? 'Cargando Castillo de Chocolate y nubes de azúcar...'
+              : newWorld === 'mayan_boss'
+              ? 'Cargando la Cripta Maya y Altar del Rey Zombi...'
+              : 'Cargando el valle principal, aldea y colinas...',
           onComplete: () => {
             if (newWorld === 'candy') {
               showToast('🍭 ¡Bienvenido al Mundo de Caramelo!');
@@ -692,6 +944,9 @@ export default function App() {
     });
     if (inventoryRef.current.equippedSwordId) {
       world.setEquippedSword(inventoryRef.current.equippedSwordId);
+    }
+    if (inventoryRef.current.equippedBootsId) {
+      world.setEquippedBoots(inventoryRef.current.equippedBootsId);
     }
     if (settingsRef.current.graphicsQuality) {
       world.setGraphicsQuality(settingsRef.current.graphicsQuality);
@@ -770,13 +1025,15 @@ export default function App() {
     setLoadingState({
       isOpen: true,
       target: 'game_start',
-      title: '⚔️ INICIANDO SUPER BOY 3D',
+      durationMs: 15000, // 15 segundos al iniciar el juego
+      title: '⚔️ INICIANDO SUPER BOY 3D (15s)',
       subtitle:
         activeMode === 'mobile'
           ? 'Preparando controles táctiles y mundo...'
           : 'Preparando teclado, ratón y mundo...',
       onComplete: () => {
         setIsPlaying(true);
+        setIsWorldReady(true);
         window.focus();
         containerRef.current?.focus();
         showToast(
@@ -953,6 +1210,18 @@ export default function App() {
       }));
 
       showToast(`🥤 ¡${item.name} Bebida! (+Efecto Activo)`);
+    } else if (item.category === 'boots') {
+      setInventory((prev) => ({
+        ...prev,
+        coins: prev.coins - item.price,
+        hasGummyBoots: true,
+        equippedBootsId: item.id,
+      }));
+
+      if (worldRef.current) {
+        worldRef.current.setEquippedBoots(item.id);
+      }
+      showToast(`👟 ¡${item.name} Compradas y Equipadas! (+120% Salto)`);
     }
   };
 
@@ -966,6 +1235,18 @@ export default function App() {
       worldRef.current.setEquippedSword(swordId);
     }
     showToast(swordId ? '🗡️ Espada equipada' : '🗡️ Espada desequipada');
+  };
+
+  // Handle Equip/Unequip Boots
+  const handleEquipBoots = (bootsId: string | null) => {
+    setInventory((prev) => ({
+      ...prev,
+      equippedBootsId: bootsId,
+    }));
+    if (worldRef.current) {
+      worldRef.current.setEquippedBoots(bootsId);
+    }
+    showToast(bootsId ? '👟 Botas de Gomita equipadas (+120% Salto)' : '👟 Botas de Gomita desequipadas');
   };
 
   // Handle Buy Multiplier Tier
@@ -1058,14 +1339,31 @@ export default function App() {
 
   const handleTeleportTo = (dest: 'spawn' | 'shop' | 'multiplier_shop' | 'candy_portal' | 'mayan_temple' | 'boss_arena') => {
     if (!isVip) return;
-    if (worldRef.current) {
-      worldRef.current.teleportTo(dest);
-      setIsVipModalOpen(false);
-      if (dest === 'mayan_temple' || dest === 'boss_arena' || dest === 'candy_portal') {
-        showToast('🏛️ ¡Teletransportado al Templo Maya (Rey Zombi)!');
-      } else {
-        showToast(`🌀 Teletransportado a ${dest}`);
-      }
+    setIsVipModalOpen(false);
+    if (!worldRef.current) return;
+
+    if (dest === 'shop' || dest === 'multiplier_shop') {
+      setLoadingState({
+        isOpen: true,
+        target: 'structure',
+        durationMs: 5000, // 5 segundos al entrar a una estructura
+        title: dest === 'shop' ? '🗡️ VIAJANDO A LA TIENDA DE ESPADAS (5s)' : '⚡ VIAJANDO A MULTIPLICADORES (5s)',
+        subtitle: 'Teletransportándote a la estructura comercial...',
+        onComplete: () => {
+          worldRef.current?.teleportTo(dest);
+          showToast(dest === 'shop' ? '🗡️ Llegaste a la Tienda de Espadas' : '⚡ Llegaste a la Tienda de Multiplicadores');
+        },
+      });
+      return;
+    }
+
+    worldRef.current.teleportTo(dest);
+    if (dest === 'candy_portal') {
+      showToast('🍭 ¡Teletransportado al Mundo Caramelo!');
+    } else if (dest === 'mayan_temple' || dest === 'boss_arena') {
+      showToast('🏛️ ¡Teletransportado al Templo Maya (Rey Zombi)!');
+    } else {
+      showToast(`🌀 Teletransportado a ${dest}`);
     }
   };
 
@@ -1278,6 +1576,8 @@ export default function App() {
           onToggleFullscreen={handleToggleFullscreen}
           onOpenInstall={handleInstallApp}
           isInstalled={isInstalled}
+          unclaimedAchievementsCount={unclaimedAchievementsCount}
+          onOpenAchievements={() => setIsAchievementsOpen(true)}
         />
       )}
 
@@ -1303,9 +1603,11 @@ export default function App() {
           isNearShop={isNearShop}
           isNearMultiplierShop={isNearMultiplierShop}
           isNearTemple={isNearTemple}
+          isNearCandyPortal={isNearCandyPortal}
           isNearCampfire={isNearCampfire}
           templeCost={templeCost}
           onEnterTemple={() => worldRef.current?.tryEnterMayanTemple()}
+          onEnterCandyWorld={() => worldRef.current?.tryEnterCandyWorld()}
           bossState={bossState}
           inventory={inventory}
           currentDimension={currentDimension}
@@ -1320,14 +1622,16 @@ export default function App() {
           onSignOut={handleSignOut}
           onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
           onOpenWardrobe={() => setIsWardrobeOpen(true)}
+          unclaimedAchievementsCount={unclaimedAchievementsCount}
+          onOpenAchievements={() => setIsAchievementsOpen(true)}
           onToggleMusic={handleToggleMusic}
           onToggleFlashlight={handleToggleFlashlight}
           onToggleViewMode={handleToggleViewMode}
           onJump={handleJump}
           onToggleSprint={handleToggleSprint}
           onSwingSword={handleSwingSword}
-          onOpenShop={() => setIsShopOpen(true)}
-          onOpenMultiplierShop={() => setIsMultiplierShopOpen(true)}
+          onOpenShop={handleOpenShop}
+          onOpenMultiplierShop={handleOpenMultiplierShop}
           onReturnToSpawn={handleReturnToSpawn}
           onTeleportToTemple={() => handleTeleportTo('mayan_temple')}
           onOpenSettings={() => setIsSettingsOpen(true)}
@@ -1369,6 +1673,15 @@ export default function App() {
         currentScore={score}
       />
 
+      {/* Achievements / Medals Modal */}
+      <AchievementsModal
+        isOpen={isAchievementsOpen}
+        onClose={() => setIsAchievementsOpen(false)}
+        stats={achievementStats}
+        onClaimReward={handleClaimAchievementReward}
+        onClaimAllRewards={handleClaimAllAchievements}
+      />
+
       {/* Wardrobe & Character Clothing Customization Modal */}
       <WardrobeModal
         isOpen={isWardrobeOpen}
@@ -1384,8 +1697,10 @@ export default function App() {
         isOpen={isShopOpen}
         onClose={() => setIsShopOpen(false)}
         inventory={inventory}
+        currentDimension={currentDimension}
         onBuyItem={handleBuyItem}
         onEquipSword={handleEquipSword}
+        onEquipBoots={handleEquipBoots}
       />
 
       {/* Multiplier Shop Modal */}
@@ -1450,6 +1765,7 @@ export default function App() {
         title={loadingState.title}
         subtitle={loadingState.subtitle}
         isWorldReady={isWorldReady}
+        durationMs={loadingState.durationMs}
         onFinish={() => {
           setLoadingState((prev) => ({ ...prev, isOpen: false }));
           loadingState.onComplete?.();

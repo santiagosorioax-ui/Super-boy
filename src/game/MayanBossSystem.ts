@@ -413,13 +413,24 @@ export class MayanBossSystem {
   }
 
   private emitState() {
+    const isTired = this.phase === 'tired';
+    const statusMessage = this.isDefeated
+      ? '¡DERROTADO!'
+      : isTired
+      ? `¡CANSADO! (${Math.ceil(this.phaseTimer)}s)`
+      : this.phase === 'intro'
+      ? '¡EL REY DESPIERTA!'
+      : 'INVULNERABLE (ESQUIVA)';
+
     this.onBossStateUpdate?.({
       active: true,
       health: this.health,
       maxHealth: this.maxHealth,
       phase: this.phase,
-      tiredTimeRemaining: this.phase === 'tired' ? Math.max(0, this.phaseTimer) : 0,
+      tiredTimeRemaining: isTired ? Math.max(0, this.phaseTimer) : 0,
       isInvulnerable: this.isInvulnerable,
+      isTired,
+      statusMessage,
     });
   }
 

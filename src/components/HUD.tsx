@@ -59,9 +59,11 @@ interface HUDProps {
   isNearShop?: boolean;
   isNearMultiplierShop?: boolean;
   isNearTemple?: boolean;
+  isNearCandyPortal?: boolean;
   isNearCampfire?: boolean;
   templeCost?: number;
   onEnterTemple?: () => void;
+  onEnterCandyWorld?: () => void;
   bossState?: MayanBossState | null;
   inventory?: PlayerInventory;
   currentDimension?: WorldDimension;
@@ -102,6 +104,8 @@ interface HUDProps {
   onToggleFullscreen?: () => void;
   onOpenInstall?: () => void;
   isInstalled?: boolean;
+  unclaimedAchievementsCount?: number;
+  onOpenAchievements?: () => void;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -124,9 +128,11 @@ export const HUD: React.FC<HUDProps> = ({
   isNearShop = false,
   isNearMultiplierShop = false,
   isNearTemple = false,
+  isNearCandyPortal = false,
   isNearCampfire = false,
   templeCost = 500,
   onEnterTemple,
+  onEnterCandyWorld,
   bossState,
   inventory,
   currentDimension = 'main',
@@ -165,6 +171,8 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleFullscreen,
   onOpenInstall,
   isInstalled = false,
+  unclaimedAchievementsCount = 0,
+  onOpenAchievements,
 }) => {
   const [hideFsBanner, setHideFsBanner] = useState(false);
   const getPeriodBadge = () => {
@@ -550,6 +558,30 @@ export const HUD: React.FC<HUDProps> = ({
             <span className="tracking-wider">ROPA</span>
           </button>
 
+          {/* Medals & Achievements Button with notification badge if ready to claim */}
+          <button
+            id="hud-btn-achievements"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onOpenAchievements?.();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenAchievements?.();
+            }}
+            aria-label="Medallas y Logros"
+            title="Medallas y Logros: Reclama recompensas en monedas al alcanzar hitos (Derrotar 50 zombis, 1000 monedas, etc.)"
+            className="relative flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-400/80 bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 hover:from-amber-500 hover:to-yellow-500 text-white font-black text-xs shadow-md shadow-amber-950/60 transition-all hover:scale-105 active:scale-95 touch-none select-none cursor-pointer"
+          >
+            <span className="text-xs leading-none">🏅</span>
+            <span className="tracking-wider">LOGROS</span>
+            {unclaimedAchievementsCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-black text-[9px] border border-white animate-pulse shadow-md">
+                {unclaimedAchievementsCount}
+              </span>
+            )}
+          </button>
+
           <button
             id="hud-btn-music"
             onPointerDown={(e) => {
@@ -694,45 +726,54 @@ export const HUD: React.FC<HUDProps> = ({
       )}
 
       {/* 1.1 MAYAN BOSS HEALTH BAR & STATUS */}
-      {currentDimension === 'mayan_boss' && bossState && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 w-[92%] max-w-md pointer-events-none z-15 flex flex-col items-center gap-1">
-          <div className={`w-full backdrop-blur-md border-2 rounded-2xl p-2.5 shadow-2xl flex flex-col gap-1.5 transition-all ${
-            bossState.isTired
-              ? 'bg-amber-950/90 border-amber-400/80 ring-2 ring-amber-400/40'
-              : 'bg-slate-950/90 border-emerald-500/60'
-          }`}>
-            <div className="flex items-center justify-between text-xs font-black">
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <span className="text-sm">🧟👑</span>
-                <span>Rey Zombi Maya</span>
+      {currentDimension === 'mayan_boss' && bossState && (() => {
+        const isTired = Boolean(bossState.isTired ?? (bossState.phase === 'tired'));
+        const statusMsg = bossState.statusMessage ?? (
+          bossState.phase === 'defeated' ? '¡DERROTADO!' :
+          isTired ? '¡CANSADO! (ATÁCALO)' :
+          bossState.phase === 'intro' ? '¡EL REY DESPIERTA!' : 'INVULNERABLE (ESQUIVA)'
+        );
+
+        return (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 w-[92%] max-w-md pointer-events-none z-15 flex flex-col items-center gap-1">
+            <div className={`w-full backdrop-blur-md border-2 rounded-2xl p-2.5 shadow-2xl flex flex-col gap-1.5 transition-all ${
+              isTired
+                ? 'bg-amber-950/90 border-amber-400/80 ring-2 ring-amber-400/40'
+                : 'bg-slate-950/90 border-emerald-500/60'
+            }`}>
+              <div className="flex items-center justify-between text-xs font-black">
+                <div className="flex items-center gap-1.5 text-emerald-400">
+                  <span className="text-sm">🧟👑</span>
+                  <span>Rey Zombi Maya</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-bold ${
+                  isTired 
+                    ? 'bg-amber-400 text-slate-950 font-black animate-bounce shadow-md' 
+                    : bossState.phase === 'defeated'
+                    ? 'bg-emerald-500 text-slate-950'
+                    : 'bg-rose-950 border border-rose-500/50 text-rose-300'
+                }`}>
+                  {statusMsg}
+                </span>
               </div>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-bold ${
-                bossState.isTired 
-                  ? 'bg-amber-400 text-slate-950 font-black animate-bounce shadow-md' 
-                  : bossState.phase === 'defeated'
-                  ? 'bg-emerald-500 text-slate-950'
-                  : 'bg-rose-950 border border-rose-500/50 text-rose-300'
-              }`}>
-                {bossState.statusMessage}
-              </span>
-            </div>
-            {/* Health Bar */}
-            <div className="w-full bg-slate-900 rounded-full h-4 border border-slate-700 overflow-hidden relative shadow-inner">
-              <div
-                className={`h-full transition-all duration-300 rounded-full ${
-                  bossState.isTired
-                    ? 'bg-gradient-to-r from-amber-400 to-yellow-300 animate-pulse'
-                    : 'bg-gradient-to-r from-rose-600 via-red-500 to-emerald-500'
-                }`}
-                style={{ width: `${Math.max(0, Math.min(100, (bossState.health / bossState.maxHealth) * 100))}%` }}
-              />
-              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white drop-shadow-md">
-                {bossState.health} / {bossState.maxHealth} HP {bossState.isTired ? '— ¡ATÁCALO AHORA!' : ''}
-              </span>
+              {/* Health Bar */}
+              <div className="w-full bg-slate-900 rounded-full h-4 border border-slate-700 overflow-hidden relative shadow-inner">
+                <div
+                  className={`h-full transition-all duration-300 rounded-full ${
+                    isTired
+                      ? 'bg-gradient-to-r from-amber-400 to-yellow-300 animate-pulse'
+                      : 'bg-gradient-to-r from-rose-600 via-red-500 to-emerald-500'
+                  }`}
+                  style={{ width: `${Math.max(0, Math.min(100, (bossState.health / bossState.maxHealth) * 100))}%` }}
+                />
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white drop-shadow-md">
+                  {bossState.health} / {bossState.maxHealth} HP {isTired ? '— ¡ATÁCALO AHORA!' : ''}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 2. ACTIVE BUFFS CHIPS (Top left underneath status bar) */}
       {hasActiveBuffs && inventory && (
@@ -826,6 +867,26 @@ export const HUD: React.FC<HUDProps> = ({
           >
             <span className="text-xl">🏛️</span>
             <span>Entrar al Templo Maya (¡Entrada Libre!) [E]</span>
+          </button>
+        </div>
+      )}
+
+      {/* 3.3 PROXIMITY CANDY WORLD PORTAL BANNER */}
+      {isNearCandyPortal && onEnterCandyWorld && !isNearShop && !isNearMultiplierShop && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-auto z-20 transition-all animate-bounce">
+          <button
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onEnterCandyWorld();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEnterCandyWorld();
+            }}
+            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-500 to-amber-400 text-white font-black text-sm shadow-2xl border-2 border-pink-300 hover:scale-105 active:scale-95 transition touch-none select-none"
+          >
+            <span className="text-xl">🍭</span>
+            <span>Entrar a Mundo Caramelo [E]</span>
           </button>
         </div>
       )}

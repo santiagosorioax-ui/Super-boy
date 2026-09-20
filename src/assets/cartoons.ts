@@ -80,6 +80,12 @@ export const CARTOON_SLIDES: CartoonSlide[] = [
     category: 'castle',
     tip: '🏰 Sigue el radar y la brújula para hallar la entrada secreta al Gran Castillo Celestial y sus cofres míticos.',
   },
+  {
+    id: 'structure_shop',
+    imageUrl: hero2dTreasure,
+    category: 'treasure',
+    tip: '🏪 En las tiendas y estructuras del reino puedes adquirir espadas legendarias, pociones místicas y multiplicadores de gemas.',
+  },
 ];
 
 /**
@@ -87,7 +93,9 @@ export const CARTOON_SLIDES: CartoonSlide[] = [
  */
 export function getSlidesForTarget(target?: TransitionTarget): CartoonSlide[] {
   let initialIndex = 0;
-  if (target === 'mayan_boss' || target === 'structure') {
+  if (target === 'structure') {
+    initialIndex = 10; // Structure & Shop
+  } else if (target === 'mayan_boss') {
     initialIndex = 2; // Mayan
   } else if (target === 'candy') {
     initialIndex = 3; // Candyland

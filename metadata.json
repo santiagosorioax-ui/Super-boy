@@ -1,6 +1,6 @@
 {
   "name": "Juego 3D de Santi",
-  "description": "SUPER BOY: Aventura 3D con armario y tienda de ropa personalizable (género hombre/mujer, gorras, sombreros, camisas, pantalones, zapatos, mochilas), ciclo día/noche, clima dinámico, zombis nocturnos, tienda de armas, Mundo de Caramelo, y el Templo Maya con el Final Boss Zombi.",
+  "description": "SUPER BOY: Aventura 3D con sistema de medallas y logros con recompensas en monedas (derrotar 50 zombis, recoger 1000 monedas), armario y tienda de ropa personalizable, ciclo día/noche, clima dinámico, zombis nocturnos, tienda de armas, Mundo de Caramelo, y el Templo Maya con el Final Boss Zombi.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

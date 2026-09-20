@@ -693,6 +693,111 @@ class SoundEngine {
     osc.stop(t + 0.36);
   }
 
+  public playGummyBounceSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    // Elastic squishy double-sine boing with harmonic bubble
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(220, t);
+    osc1.frequency.exponentialRampToValueAtTime(880, t + 0.15);
+    osc1.frequency.exponentialRampToValueAtTime(440, t + 0.28);
+
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(330, t);
+    osc2.frequency.exponentialRampToValueAtTime(1100, t + 0.12);
+    osc2.frequency.exponentialRampToValueAtTime(550, t + 0.25);
+
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.linearRampToValueAtTime(0.35, t + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc1.start(t);
+    osc2.start(t);
+    osc1.stop(t + 0.4);
+    osc2.stop(t + 0.4);
+  }
+
+  public playGummyBossRoar() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    // Bubbly deep gummy bass roar with gelatinous wobble
+    const osc = this.ctx.createOscillator();
+    const lfo = this.ctx.createOscillator();
+    const lfoGain = this.ctx.createGain();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(110, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.6);
+
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(14, t);
+    lfoGain.gain.setValueAtTime(35, t);
+
+    lfo.connect(osc.frequency);
+
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    lfo.start(t);
+    osc.start(t);
+    lfo.stop(t + 0.72);
+    osc.stop(t + 0.72);
+  }
+
+  public playCandyBombExplodeSound() {
+    this.init();
+    this.resume();
+    if (!this.ctx || !this.sfxGain || this.sfxVolume <= 0) return;
+
+    const t = this.ctx.currentTime;
+    // Pop + sparkling fizzy high pitched chimes
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(500, t);
+    osc.frequency.exponentialRampToValueAtTime(120, t + 0.2);
+
+    gain.gain.setValueAtTime(0.28, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(t);
+    osc.stop(t + 0.26);
+
+    // Chimes
+    [1046.5, 1318.5, 1567.98].forEach((f, idx) => {
+      const chime = this.ctx!.createOscillator();
+      const chimeGain = this.ctx!.createGain();
+      chime.type = 'sine';
+      chime.frequency.setValueAtTime(f, t + idx * 0.04);
+      chimeGain.gain.setValueAtTime(0.12, t + idx * 0.04);
+      chimeGain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.04 + 0.25);
+      chime.connect(chimeGain);
+      chimeGain.connect(this.sfxGain!);
+      chime.start(t + idx * 0.04);
+      chime.stop(t + idx * 0.04 + 0.26);
+    });
+  }
+
   public playFlightToggleSound(isFlying: boolean) {
     this.init();
     this.resume();

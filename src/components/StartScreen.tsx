@@ -49,6 +49,8 @@ interface StartScreenProps {
   onToggleFullscreen?: () => void;
   onOpenInstall?: () => void;
   isInstalled?: boolean;
+  unclaimedAchievementsCount?: number;
+  onOpenAchievements?: () => void;
 }
 
 export const StartScreen: React.FC<StartScreenProps> = ({
@@ -71,6 +73,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   onToggleFullscreen,
   onOpenInstall,
   isInstalled = false,
+  unclaimedAchievementsCount = 0,
+  onOpenAchievements,
 }) => {
   return (
     <div 
@@ -286,7 +290,23 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             title="Ranking y Clasificación"
           >
             <Trophy className="w-3.5 h-3.5 text-amber-400" />
-            <span>Ranking</span>
+            <span className="hidden sm:inline">Ranking</span>
+          </button>
+
+          {/* Achievements / Medals Button */}
+          <button
+            id="start-btn-achievements"
+            onClick={onOpenAchievements}
+            className="relative flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600/30 to-yellow-600/30 hover:from-amber-600/40 hover:to-yellow-600/40 border border-amber-500/50 text-xs font-bold text-amber-300 transition"
+            title="Medallas y Logros: Consulta tus hitos y reclama monedas"
+          >
+            <span>🏅</span>
+            <span>Logros</span>
+            {unclaimedAchievementsCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-black text-[9px] border border-white animate-pulse shadow">
+                {unclaimedAchievementsCount}
+              </span>
+            )}
           </button>
 
           {/* View Mode Toggle */}

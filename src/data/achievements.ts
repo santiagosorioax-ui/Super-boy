@@ -1,0 +1,128 @@
+import { Achievement } from '../types';
+
+export const INITIAL_ACHIEVEMENTS: Omit<Achievement, 'current' | 'isUnlocked' | 'isClaimed'>[] = [
+  // --- COMBATE ---
+  {
+    id: 'zombies_5',
+    title: 'Cazador Novato',
+    description: 'Derrota a 5 zombis en el valle o el mundo caramelo.',
+    icon: '⚔️',
+    category: 'combat',
+    target: 5,
+    rewardCoins: 100,
+  },
+  {
+    id: 'zombies_25',
+    title: 'Cazador Experto',
+    description: 'Derrota a 25 zombis con tus espadas.',
+    icon: '🗡️',
+    category: 'combat',
+    target: 25,
+    rewardCoins: 500,
+  },
+  {
+    id: 'zombies_50',
+    title: 'Aniquilador de Zombis',
+    description: '¡Hito legendario! Derrota a 50 zombis y limpia las tierras.',
+    icon: '🧟‍♂️',
+    category: 'combat',
+    target: 50,
+    rewardCoins: 1500,
+  },
+
+  // --- RECOLECCIÓN & MONEDAS ---
+  {
+    id: 'coins_10',
+    title: 'Primeros Pasos',
+    description: 'Recoge tus primeras 10 monedas del mapa.',
+    icon: '🪙',
+    category: 'collection',
+    target: 10,
+    rewardCoins: 50,
+  },
+  {
+    id: 'coins_250',
+    title: 'Ahorrador de Oro',
+    description: 'Acumula un total de 250 monedas ganadas.',
+    icon: '💰',
+    category: 'collection',
+    target: 250,
+    rewardCoins: 300,
+  },
+  {
+    id: 'coins_500',
+    title: 'Bolsa de Riqueza',
+    description: 'Acumula 500 monedas en tu balance general.',
+    icon: '💎',
+    category: 'collection',
+    target: 500,
+    rewardCoins: 750,
+  },
+  {
+    id: 'coins_1000',
+    title: 'Magnate del Valle',
+    description: '¡Hito extraordinario! Recoge 1000 monedas totales en tu aventura.',
+    icon: '👑',
+    category: 'collection',
+    target: 1000,
+    rewardCoins: 2500,
+  },
+
+  // --- EXPLORACIÓN & PARKOUR ---
+  {
+    id: 'world_candy',
+    title: 'Viaje Dulce',
+    description: 'Descubre y cruza el portal hacia el Mundo Caramelo.',
+    icon: '🍭',
+    category: 'exploration',
+    target: 1,
+    rewardCoins: 500,
+  },
+  {
+    id: 'gummy_springs',
+    title: 'Saltarín de Gomitas',
+    description: 'Rebota 10 veces en los trampolines y champiñones de gomita.',
+    icon: '🍄',
+    category: 'exploration',
+    target: 10,
+    rewardCoins: 300,
+  },
+  {
+    id: 'equip_gummy_boots',
+    title: 'Pies de Gelatina',
+    description: 'Compra y equipa las Botas de Gomita de la tienda de caramelo.',
+    icon: '👟',
+    category: 'exploration',
+    target: 1,
+    rewardCoins: 600,
+  },
+  {
+    id: 'energy_drink',
+    title: 'Subidón Energético',
+    description: 'Prueba cualquier bebida energética para obtener potenciadores.',
+    icon: '🥤',
+    category: 'exploration',
+    target: 1,
+    rewardCoins: 200,
+  },
+
+  // --- JEFES / BOSSES ---
+  {
+    id: 'defeat_mayan_boss',
+    title: 'Conquistador Maya',
+    description: 'Derrota al temible Rey Zombi Maya en lo profundo del templo.',
+    icon: '🏛️',
+    category: 'bosses',
+    target: 1,
+    rewardCoins: 3000,
+  },
+  {
+    id: 'defeat_gummy_boss',
+    title: 'El Señor del Chocolate',
+    description: 'Vence al colosal Gran Oso de Gomita dentro del Castillo de Chocolate.',
+    icon: '🏰',
+    category: 'bosses',
+    target: 1,
+    rewardCoins: 5000,
+  },
+];

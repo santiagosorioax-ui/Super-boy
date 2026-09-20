@@ -16,6 +16,10 @@ export interface FirebaseUserData {
   unlockedMultipliers: number[];
   zombiesDefeated: number;
   customization?: PlayerCustomization;
+  claimedAchievementIds?: string[];
+  lifetimeCoinsCollected?: number;
+  totalJumps?: number;
+  bossDefeatedCount?: number;
   updatedAt: string;
   createdAt?: string;
 }
@@ -52,7 +56,13 @@ export async function saveUserProgress(
   bestScore: number,
   inventory: PlayerInventory,
   zombiesDefeated: number,
-  customization?: PlayerCustomization
+  customization?: PlayerCustomization,
+  achievementStats?: {
+    claimedAchievementIds?: string[];
+    lifetimeCoinsCollected?: number;
+    totalJumps?: number;
+    bossDefeatedCount?: number;
+  }
 ): Promise<void> {
   const user = auth.currentUser;
   if (!user) return;
@@ -70,6 +80,10 @@ export async function saveUserProgress(
     unlockedMultipliers: inventory.unlockedMultipliers,
     zombiesDefeated: Math.floor(zombiesDefeated),
     ...(customization ? { customization } : {}),
+    ...(achievementStats?.claimedAchievementIds ? { claimedAchievementIds: achievementStats.claimedAchievementIds } : {}),
+    ...(typeof achievementStats?.lifetimeCoinsCollected === 'number' ? { lifetimeCoinsCollected: achievementStats.lifetimeCoinsCollected } : {}),
+    ...(typeof achievementStats?.totalJumps === 'number' ? { totalJumps: achievementStats.totalJumps } : {}),
+    ...(typeof achievementStats?.bossDefeatedCount === 'number' ? { bossDefeatedCount: achievementStats.bossDefeatedCount } : {}),
     updatedAt: new Date().toISOString(),
   };
 
