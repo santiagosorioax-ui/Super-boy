@@ -18,6 +18,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // 0. Connection Test Document
+    match /test/{docId} {
+      allow read: if true;
+    }
+
     // 1. Private User Game State and Profile
     match /users/{userId} {
       allow get: if isOwner(userId);

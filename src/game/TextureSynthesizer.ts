@@ -26,6 +26,37 @@ export class TextureSynthesizer {
   private static waterNormal: THREE.CanvasTexture | null = null;
   private static candyGlazeNormal: THREE.CanvasTexture | null = null;
   private static chocoCarvedNormal: THREE.CanvasTexture | null = null;
+  private static mayanStoneTexture: THREE.CanvasTexture | null = null;
+  private static mayanStoneNormal: THREE.CanvasTexture | null = null;
+  private static currentAnisotropy = 4;
+
+  /**
+   * Set texture anisotropic filtering across all synthesised textures
+   */
+  public static setAnisotropy(level: number) {
+    this.currentAnisotropy = Math.max(1, Math.min(16, level));
+    const allTextures = [
+      this.grassTexture,
+      this.grassNormal,
+      this.grassRoughness,
+      this.rockTexture,
+      this.rockNormal,
+      this.cobblestoneTexture,
+      this.cobblestoneNormal,
+      this.woodBarkTexture,
+      this.woodBarkNormal,
+      this.woodPlankTexture,
+      this.woodPlankNormal,
+      this.mayanStoneTexture,
+      this.mayanStoneNormal,
+    ];
+    allTextures.forEach((t) => {
+      if (t) {
+        t.anisotropy = this.currentAnisotropy;
+        t.needsUpdate = true;
+      }
+    });
+  }
 
   /**
    * Grass Diffuse Texture (512x512 multi-frequency organic blade distribution)
@@ -578,6 +609,124 @@ export class TextureSynthesizer {
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(4, 4);
     this.chocoCarvedNormal = tex;
+    return tex;
+  }
+
+  /**
+   * Ancient Mayan Carved Limestone Diffuse Texture
+   */
+  public static getMayanStoneTexture(): THREE.CanvasTexture {
+    if (this.mayanStoneTexture) return this.mayanStoneTexture;
+
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    if (ctx) {
+      // Base Mesoamerican weathered limestone
+      ctx.fillStyle = '#b8b1a4';
+      ctx.fillRect(0, 0, size, size);
+
+      // Micro noise for ancient weathered porous surface
+      const imgData = ctx.getImageData(0, 0, size, size);
+      const data = imgData.data;
+      let seed = 91823;
+      const rnd = () => {
+        seed = (seed * 16807) % 2147483647;
+        return (seed - 1) / 2147483646;
+      };
+
+      for (let i = 0; i < data.length; i += 4) {
+        const noise = (rnd() - 0.5) * 36;
+        data[i] = Math.max(90, Math.min(210, 184 + noise));
+        data[i + 1] = Math.max(85, Math.min(200, 176 + noise * 0.9));
+        data[i + 2] = Math.max(75, Math.min(190, 164 + noise * 0.8));
+        data[i + 3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      // Ancient stone block division lines
+      ctx.strokeStyle = 'rgba(60, 50, 42, 0.45)';
+      ctx.lineWidth = 3;
+      for (let y = 0; y < size; y += 64) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(size, y);
+        ctx.stroke();
+
+        const offset = (y % 128 === 0) ? 0 : 32;
+        for (let x = offset; x < size; x += 64) {
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x, y + 64);
+          ctx.stroke();
+        }
+      }
+
+      // Moss & lichen stains on ancient crevices
+      ctx.fillStyle = 'rgba(74, 110, 52, 0.22)';
+      for (let j = 0; j < 40; j++) {
+        const mx = rnd() * size;
+        const my = rnd() * size;
+        const mr = 4 + rnd() * 12;
+        ctx.beginPath();
+        ctx.arc(mx, my, mr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(8, 8);
+    tex.anisotropy = this.currentAnisotropy;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.mayanStoneTexture = tex;
+    return tex;
+  }
+
+  /**
+   * Ancient Mayan Stone Block Relief Normal Map
+   */
+  public static getMayanStoneNormal(): THREE.CanvasTexture {
+    if (this.mayanStoneNormal) return this.mayanStoneNormal;
+
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    if (ctx) {
+      ctx.fillStyle = '#8080ff';
+      ctx.fillRect(0, 0, size, size);
+
+      // Deep carved mortar grooves
+      ctx.fillStyle = '#5555bb';
+      for (let y = 0; y < size; y += 64) {
+        ctx.fillRect(0, y - 2, size, 4);
+
+        const offset = (y % 128 === 0) ? 0 : 32;
+        for (let x = offset; x < size; x += 64) {
+          ctx.fillRect(x - 2, y, 4, 64);
+        }
+      }
+
+      // Embossed bevel highlights on block edges
+      ctx.fillStyle = '#aaaaff';
+      for (let y = 0; y < size; y += 64) {
+        ctx.fillRect(0, y + 2, size, 2);
+      }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(8, 8);
+    tex.anisotropy = this.currentAnisotropy;
+    this.mayanStoneNormal = tex;
     return tex;
   }
 }

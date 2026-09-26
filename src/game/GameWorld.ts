@@ -42,6 +42,42 @@ export interface WorldCallbacks {
   onFlightChange?: (isFlying: boolean) => void;
   onNearCampfire?: (isNear: boolean) => void;
   onWorldReady?: () => void;
+  onViewModeChange?: (mode: 'first_person' | 'third_person') => void;
+}
+
+class GameTimer {
+  private startTime = 0;
+  private oldTime = 0;
+  private elapsedTime = 0;
+  private isRunning = false;
+
+  public start() {
+    const now = (typeof performance !== 'undefined' ? performance : Date).now();
+    this.startTime = now;
+    this.oldTime = now;
+    this.elapsedTime = 0;
+    this.isRunning = true;
+  }
+
+  public stop() {
+    this.isRunning = false;
+  }
+
+  public getDelta(): number {
+    const now = (typeof performance !== 'undefined' ? performance : Date).now();
+    if (!this.isRunning) {
+      this.oldTime = now;
+      return 0;
+    }
+    const delta = (now - this.oldTime) / 1000;
+    this.oldTime = now;
+    this.elapsedTime += delta;
+    return delta;
+  }
+
+  public getElapsedTime(): number {
+    return this.elapsedTime;
+  }
 }
 
 export class GameWorld {
@@ -49,7 +85,7 @@ export class GameWorld {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private clock: THREE.Clock;
+  private clock: GameTimer;
   private callbacks: WorldCallbacks;
 
   // Weather System
@@ -283,7 +319,7 @@ export class GameWorld {
     this.renderer.toneMappingExposure = 1.08;
     container.appendChild(this.renderer.domElement);
 
-    this.clock = new THREE.Clock();
+    this.clock = new GameTimer();
 
     // 2. Sky & Atmosphere (Calibrated soft fog for wide scenic vistas)
     this.scene.background = new THREE.Color(0x87ceeb);
@@ -345,6 +381,7 @@ export class GameWorld {
     this.fpsWeaponHolder = new THREE.Group();
     this.fpsWeaponHolder.position.set(0.35, -0.32, -0.65);
     this.fpsWeaponHolder.rotation.set(0.2, -0.3, 0.1);
+    this.fpsWeaponHolder.visible = this.viewMode === 'first_person';
     this.camera.add(this.fpsWeaponHolder);
     this.scene.add(this.camera);
 
@@ -402,7 +439,7 @@ export class GameWorld {
     } else {
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = (this.graphicsQuality === 'high' || this.graphicsQuality === 'ultra')
-        ? THREE.PCFSoftShadowMap
+        ? THREE.PCFShadowMap
         : THREE.BasicShadowMap;
     }
   }
@@ -426,8 +463,8 @@ export class GameWorld {
       this.sunLight.shadow.bias = -0.0004;
       if (this.sunLight.shadow.map) {
         this.sunLight.shadow.map.dispose();
-        (this.sunLight.shadow as unknown as { map: THREE.WebGLRenderTarget | null }).map = null;
       }
+      this.sunLight.shadow.needsUpdate = true;
     }
     if (this.firefliesParticles) {
       this.firefliesParticles.visible = quality !== 'low';
@@ -2235,11 +2272,9 @@ export class GameWorld {
     this.renderer.domElement.tabIndex = 0;
     this.renderer.domElement.style.outline = 'none';
 
-    // Global and window-level keyboard listeners
+    // Global and window-level keyboard listeners (single registration on window)
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
-    document.addEventListener('keydown', this.onKeyDown);
-    document.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('resize', this.onResize);
 
     // Mouse & Pointer listeners for Camera rotation & interaction
@@ -2577,11 +2612,19 @@ export class GameWorld {
 
   public toggleViewMode(): 'first_person' | 'third_person' {
     this.viewMode = this.viewMode === 'first_person' ? 'third_person' : 'first_person';
+    if (this.fpsWeaponHolder) {
+      this.fpsWeaponHolder.visible = this.viewMode === 'first_person';
+    }
+    this.callbacks.onViewModeChange?.(this.viewMode);
     return this.viewMode;
   }
 
   public setViewMode(mode: 'first_person' | 'third_person') {
     this.viewMode = mode;
+    if (this.fpsWeaponHolder) {
+      this.fpsWeaponHolder.visible = this.viewMode === 'first_person';
+    }
+    this.callbacks.onViewModeChange?.(this.viewMode);
   }
 
   public setCycleSpeed(mode: GameSettings['cycleSpeed']) {
@@ -2664,6 +2707,7 @@ export class GameWorld {
       while (this.fpsWeaponHolder.children.length > 0) {
         this.fpsWeaponHolder.remove(this.fpsWeaponHolder.children[0]);
       }
+      this.fpsWeaponHolder.visible = false;
     }
 
     if (swordId) {
@@ -2681,6 +2725,7 @@ export class GameWorld {
         const fpMesh = this.createSwordMesh(swordId);
         fpMesh.scale.set(0.85, 0.85, 0.85);
         this.fpsWeaponHolder.add(fpMesh);
+        this.fpsWeaponHolder.visible = this.viewMode === 'first_person';
       }
 
       soundEngine.playEquipSound();
@@ -4103,16 +4148,19 @@ export class GameWorld {
       }
     }
 
-    // First person weapon swing animation
+    // First person weapon swing animation and perspective visibility sync
     if (this.fpsWeaponHolder) {
-      if (this.isSwingingSword) {
-        this.fpsWeaponHolder.rotation.set(
-          0.2 - swingAngle * 1.4,
-          -0.3 + swingAngle * 0.9,
-          0.1 - swingAngle * 1.2
-        );
-      } else {
-        this.fpsWeaponHolder.rotation.set(0.2, -0.3, 0.1);
+      this.fpsWeaponHolder.visible = this.viewMode === 'first_person';
+      if (this.viewMode === 'first_person') {
+        if (this.isSwingingSword) {
+          this.fpsWeaponHolder.rotation.set(
+            0.2 - swingAngle * 1.4,
+            -0.3 + swingAngle * 0.9,
+            0.1 - swingAngle * 1.2
+          );
+        } else {
+          this.fpsWeaponHolder.rotation.set(0.2, -0.3, 0.1);
+        }
       }
     }
 
@@ -4135,11 +4183,17 @@ export class GameWorld {
 
     if (this.viewMode === 'first_person') {
       this.playerMesh.visible = false;
+      if (this.fpsWeaponHolder) {
+        this.fpsWeaponHolder.visible = true;
+      }
       this.camera.position.copy(playerEyePos);
       this.camera.rotation.y = this.yaw;
       this.camera.rotation.x = this.pitch;
     } else {
       this.playerMesh.visible = true;
+      if (this.fpsWeaponHolder) {
+        this.fpsWeaponHolder.visible = false;
+      }
       const camDist = this.thirdPersonDistance;
       const camHeight = 1.45;
 

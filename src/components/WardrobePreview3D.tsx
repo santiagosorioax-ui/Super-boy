@@ -37,7 +37,7 @@ export const WardrobePreview3D: React.FC<WardrobePreview3DProps> = ({ customizat
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     container.appendChild(renderer.domElement);
 
     // 3. Studio Lighting
@@ -88,13 +88,16 @@ export const WardrobePreview3D: React.FC<WardrobePreview3DProps> = ({ customizat
 
     // 6. Animation Loop with Idle Breathing
     let animationFrameId: number;
-    let clock = new THREE.Clock();
+    let lastTime = performance.now();
+    let elapsed = 0;
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
 
-      const delta = clock.getDelta();
-      const elapsed = clock.getElapsedTime();
+      const now = performance.now();
+      const delta = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+      elapsed += delta;
 
       // Smooth Rotation Lerp
       rotationYRef.current = THREE.MathUtils.lerp(rotationYRef.current, targetRotationYRef.current, 0.15);

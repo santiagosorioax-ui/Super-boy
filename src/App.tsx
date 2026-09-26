@@ -300,7 +300,7 @@ export default function App() {
     cycleSpeed: 'normal',
     showCompass: true,
     viewMode: 'first_person',
-    graphicsQuality: isMobileDevice ? 'medium' : 'high',
+    graphicsQuality: isMobileDevice ? 'medium' : 'ultra',
     showFps: false,
     controlMode: isMobileDevice ? 'mobile' : 'pc',
   });
@@ -932,6 +932,10 @@ export default function App() {
         setIsFlying(flying);
         setVipProfile((prev) => ({ ...prev, flyMode: flying }));
       },
+      onViewModeChange: (newMode: 'first_person' | 'third_person') => {
+        setViewMode(newMode);
+        showToast(newMode === 'third_person' ? '👁️ Tercera Persona' : '👁️ Primera Persona');
+      },
       onWorldReady: () => {
         setIsWorldReady(true);
       },
@@ -1099,6 +1103,22 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleCreatorKeyDown);
   }, [isVip]);
 
+  // Global Camera Toggle Hotkey [V]
+  useEffect(() => {
+    const handleViewModeKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+      if (e.code === 'KeyV' || e.key === 'v' || e.key === 'V') {
+        e.preventDefault();
+        if (worldRef.current) {
+          worldRef.current.toggleViewMode();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleViewModeKeyDown);
+    return () => window.removeEventListener('keydown', handleViewModeKeyDown);
+  }, []);
+
   // Handle Music Toggle
   const handleToggleMusic = () => {
     const playing = soundEngine.toggleMusic();
@@ -1120,9 +1140,7 @@ export default function App() {
   // Handle Camera Mode Toggle
   const handleToggleViewMode = () => {
     if (worldRef.current) {
-      const mode = worldRef.current.toggleViewMode();
-      setViewMode(mode);
-      showToast(mode === 'third_person' ? '👁️ Tercera Persona' : '👁️ Primera Persona');
+      worldRef.current.toggleViewMode();
     }
   };
 

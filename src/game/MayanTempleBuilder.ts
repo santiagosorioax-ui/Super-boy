@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TextureSynthesizer } from './TextureSynthesizer';
 
 export interface MayanTempleElements {
   group: THREE.Group;
@@ -22,18 +23,29 @@ export class MayanTempleBuilder {
     const platforms: { box: THREE.Box3; topY: number }[] = [];
 
     // --- MESOAMERICAN STONE & JADE MATERIALS ---
+    const mayanTex = TextureSynthesizer.getMayanStoneTexture();
+    const mayanNorm = TextureSynthesizer.getMayanStoneNormal();
+    const rockNorm = TextureSynthesizer.getRockNormal();
+
     const sandstoneMat = new THREE.MeshStandardMaterial({
-      color: 0xb5afa9, // Weathered ancient Mesoamerican limestone
-      roughness: 0.78,
-      flatShading: true,
+      color: 0xc4beb6, // Weathered ancient Mesoamerican limestone
+      roughness: 0.75,
+      map: mayanTex,
+      normalMap: mayanNorm,
+      normalScale: new THREE.Vector2(0.65, 0.65),
     });
     const darkAndesiteMat = new THREE.MeshStandardMaterial({
-      color: 0x44403c, // Dark volcanic andesite stone
+      color: 0x4a4642, // Dark volcanic andesite stone
       roughness: 0.82,
+      map: mayanTex,
+      normalMap: mayanNorm,
+      normalScale: new THREE.Vector2(0.8, 0.8),
     });
     const carvedBasaltMat = new THREE.MeshStandardMaterial({
       color: 0x292524, // Carved basalt serpent stone
       roughness: 0.7,
+      normalMap: rockNorm,
+      normalScale: new THREE.Vector2(0.5, 0.5),
     });
     const goldOrnamentMat = new THREE.MeshStandardMaterial({
       color: 0xf59e0b,

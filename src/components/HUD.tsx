@@ -500,17 +500,13 @@ export const HUD: React.FC<HUDProps> = ({
           {/* Leaderboard High Scores Button (Shrunk) */}
           <button
             id="hud-btn-leaderboard"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onOpenLeaderboard?.();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onOpenLeaderboard?.();
             }}
             aria-label="Ranking Global"
             title="Ranking de Mejores Jugadores"
-            className="p-1 rounded-lg border border-amber-500/40 bg-amber-950/80 hover:bg-amber-900/80 backdrop-blur-md text-amber-300 hover:text-amber-100 shadow-sm transition active:scale-95 touch-none select-none"
+            className="p-1 rounded-lg border border-amber-500/40 bg-amber-950/80 hover:bg-amber-900/80 backdrop-blur-md text-amber-300 hover:text-amber-100 shadow-sm transition active:scale-95 touch-none select-none cursor-pointer"
           >
             <Trophy className="w-3 h-3 text-amber-400" />
           </button>
@@ -518,17 +514,13 @@ export const HUD: React.FC<HUDProps> = ({
           {/* Control Mode Toggle Button (PC vs Celular) (Shrunk) */}
           <button
             id="hud-btn-control-mode"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onToggleControlMode?.();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onToggleControlMode?.();
             }}
             aria-label={controlMode === 'mobile' ? 'Modo Celular (Táctil)' : 'Modo PC (Teclado/Ratón)'}
             title={controlMode === 'mobile' ? 'Modo Celular (Clic para cambiar a PC)' : 'Modo PC (Clic para cambiar a Celular)'}
-            className={`px-1.5 py-0.5 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none flex items-center gap-0.5 text-[9px] font-bold ${
+            className={`px-1.5 py-0.5 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none flex items-center gap-0.5 text-[9px] font-bold cursor-pointer ${
               controlMode === 'mobile'
                 ? 'bg-emerald-600/80 border-emerald-400/60 text-white shadow-emerald-950/40'
                 : 'bg-blue-600/80 border-blue-400/60 text-white shadow-blue-950/40'
@@ -547,20 +539,39 @@ export const HUD: React.FC<HUDProps> = ({
             )}
           </button>
 
+          {/* View Mode Camera Toggle Button [V] (Available on both PC and Mobile) */}
+          <button
+            id="hud-btn-camera-top"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onToggleViewMode();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            aria-label="Alternar Cámara [V]"
+            title="Alternar Cámara (Tecla V / Táctil): 1ª vs 3ª persona"
+            className={`px-1.5 py-0.5 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none flex items-center gap-1 text-[9px] font-bold cursor-pointer ${
+              viewMode === 'third_person'
+                ? 'bg-indigo-600/90 border-indigo-400 text-white shadow-indigo-500/20'
+                : 'bg-slate-900/85 border-slate-700 text-slate-300 hover:text-white'
+            }`}
+          >
+            <Eye className="w-3 h-3 text-indigo-300" />
+            <span className="font-extrabold text-[8px] px-1 rounded bg-black/50 text-indigo-200 border border-indigo-500/30">V</span>
+            <span className="hidden sm:inline text-[9px]">{viewMode === 'third_person' ? '3ª' : '1ª'}</span>
+          </button>
+
           {/* Clothing / Wardrobe Button - Highlighted for Customization & Outfits */}
           <button
             id="hud-btn-outfits"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onOpenWardrobe?.();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onOpenWardrobe?.();
             }}
             aria-label="Armario y Ropa"
             title="Tienda de Ropa: Cambiar ropa, sombreros, zapatos, mochilas y cambiar de hombre a mujer con monedas"
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-purple-400/80 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xs shadow-md shadow-purple-950/60 transition-all hover:scale-105 active:scale-95 touch-none select-none"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-purple-400/80 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xs shadow-md shadow-purple-950/60 transition-all hover:scale-105 active:scale-95 touch-none select-none cursor-pointer"
           >
             <Shirt className="w-3.5 h-3.5 text-yellow-300" />
             <span className="tracking-wider">ROPA</span>
@@ -569,10 +580,6 @@ export const HUD: React.FC<HUDProps> = ({
           {/* Medals & Achievements Button with notification badge if ready to claim */}
           <button
             id="hud-btn-achievements"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onOpenAchievements?.();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onOpenAchievements?.();
@@ -592,16 +599,12 @@ export const HUD: React.FC<HUDProps> = ({
 
           <button
             id="hud-btn-music"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onToggleMusic();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onToggleMusic();
             }}
             aria-label="Música"
-            className={`p-1 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none ${
+            className={`p-1 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none cursor-pointer ${
               isMusicOn
                 ? 'bg-emerald-600/80 border-emerald-400/50 text-white'
                 : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-white'
@@ -612,16 +615,12 @@ export const HUD: React.FC<HUDProps> = ({
 
           <button
             id="hud-btn-help"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onOpenHelp();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onOpenHelp();
             }}
             aria-label="Ayuda"
-            className="p-1 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
+            className="p-1 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none cursor-pointer"
           >
             <HelpCircle className="w-3 h-3" />
           </button>
@@ -630,17 +629,13 @@ export const HUD: React.FC<HUDProps> = ({
           {onOpenInstall && (
             <button
               id="hud-btn-download-pwa"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onOpenInstall();
-              }}
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenInstall();
               }}
               aria-label="Descargar Juego Completo"
               title="Descargar e instalar el juego completo en Celular o PC (PWA)"
-              className="p-1 rounded-lg border border-amber-500/50 bg-amber-950/80 hover:bg-amber-900/90 text-amber-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
+              className="p-1 rounded-lg border border-amber-500/50 bg-amber-950/80 hover:bg-amber-900/90 text-amber-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none cursor-pointer"
             >
               <Download className="w-3 h-3" />
             </button>
@@ -648,16 +643,12 @@ export const HUD: React.FC<HUDProps> = ({
 
           <button
             id="hud-btn-settings"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onOpenSettings();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onOpenSettings();
             }}
             aria-label="Ajustes"
-            className="p-1 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none"
+            className="p-1 rounded-lg border border-slate-700/60 bg-slate-900/80 backdrop-blur-md text-slate-300 hover:text-white shadow-sm transition active:scale-95 touch-none select-none cursor-pointer"
           >
             <Settings className="w-3 h-3" />
           </button>
@@ -666,17 +657,13 @@ export const HUD: React.FC<HUDProps> = ({
           {onToggleFullscreen && (
             <button
               id="hud-btn-fullscreen"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onToggleFullscreen();
-              }}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleFullscreen();
               }}
               aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa (Ocultar barra de URL)'}
               title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa (Oculta la barra de URL y navegación)'}
-              className={`p-1 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none ${
+              className={`p-1 rounded-lg border backdrop-blur-md shadow-sm transition active:scale-95 touch-none select-none cursor-pointer ${
                 isFullscreen
                   ? 'border-emerald-500/80 bg-emerald-950/80 text-emerald-300'
                   : 'border-cyan-500/80 bg-cyan-950/80 hover:bg-cyan-900/80 text-cyan-300'
@@ -835,15 +822,11 @@ export const HUD: React.FC<HUDProps> = ({
       {isNearShop && onOpenShop && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-auto z-20 transition-all animate-bounce">
           <button
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onOpenShop();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onOpenShop();
             }}
-            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-sm shadow-2xl border-2 border-white hover:scale-105 active:scale-95 transition touch-none select-none"
+            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-sm shadow-2xl border-2 border-white hover:scale-105 active:scale-95 transition touch-none select-none cursor-pointer"
           >
             <span className="text-xl">🏪</span>
             <span>Entrar a la Tienda de Santi (E)</span>
@@ -854,15 +837,11 @@ export const HUD: React.FC<HUDProps> = ({
       {isNearMultiplierShop && onOpenMultiplierShop && !isNearShop && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-auto z-20 transition-all animate-bounce">
           <button
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onOpenMultiplierShop();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onOpenMultiplierShop();
             }}
-            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-500 to-pink-500 text-white font-black text-sm shadow-2xl border-2 border-white hover:scale-105 active:scale-95 transition touch-none select-none"
+            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-500 to-pink-500 text-white font-black text-sm shadow-2xl border-2 border-white hover:scale-105 active:scale-95 transition touch-none select-none cursor-pointer"
           >
             <span className="text-xl">✨</span>
             <span>Altar de Multiplicadores (1x a 6x) (Presiona E)</span>
@@ -874,15 +853,11 @@ export const HUD: React.FC<HUDProps> = ({
       {isNearTemple && onEnterTemple && !isNearShop && !isNearMultiplierShop && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-auto z-20 transition-all animate-bounce">
           <button
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onEnterTemple();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onEnterTemple();
             }}
-            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-500 to-amber-500 text-white font-black text-sm shadow-2xl border-2 border-emerald-300 hover:scale-105 active:scale-95 transition touch-none select-none"
+            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-500 to-amber-500 text-white font-black text-sm shadow-2xl border-2 border-emerald-300 hover:scale-105 active:scale-95 transition touch-none select-none cursor-pointer"
           >
             <span className="text-xl">🏛️</span>
             <span>Entrar al Templo Maya (¡Entrada Libre!) [E]</span>
@@ -894,15 +869,11 @@ export const HUD: React.FC<HUDProps> = ({
       {isNearCandyPortal && onEnterCandyWorld && !isNearShop && !isNearMultiplierShop && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-auto z-20 transition-all animate-bounce">
           <button
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onEnterCandyWorld();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onEnterCandyWorld();
             }}
-            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-500 to-amber-400 text-white font-black text-sm shadow-2xl border-2 border-pink-300 hover:scale-105 active:scale-95 transition touch-none select-none"
+            className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-pink-600 via-rose-500 to-amber-400 text-white font-black text-sm shadow-2xl border-2 border-pink-300 hover:scale-105 active:scale-95 transition touch-none select-none cursor-pointer"
           >
             <span className="text-xl">🍭</span>
             <span>Entrar a Mundo Caramelo [E]</span>
@@ -989,16 +960,15 @@ export const HUD: React.FC<HUDProps> = ({
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onSwingSword();
                 }}
-                className="w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 bg-rose-600/90 border-rose-400 text-white animate-pulse touch-none select-none"
+                className="w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 bg-rose-600/90 border-rose-400 text-white animate-pulse touch-none select-none cursor-pointer"
                 title="Atacar con Espada"
               >
                 <Sword className="w-5 h-5" />
               </button>
             )}
 
-            {/* View Mode Toggle (1st vs 3rd Person) */}
+            {/* View Mode Toggle (1st vs 3rd Person) [V] */}
             <button
               id="btn-action-camera"
               onPointerDown={(e) => {
@@ -1007,16 +977,16 @@ export const HUD: React.FC<HUDProps> = ({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                onToggleViewMode();
               }}
-              className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none ${
+              className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none cursor-pointer relative ${
                 viewMode === 'third_person'
-                  ? 'bg-indigo-600/80 border-indigo-400 text-white'
+                  ? 'bg-indigo-600/90 border-indigo-400 text-white shadow-indigo-500/30'
                   : 'bg-slate-900/80 border-slate-700 text-slate-300'
               }`}
-              title="Cambiar Cámara (1ª/3ª persona)"
+              title="Cambiar Cámara [V] (1ª/3ª persona)"
             >
               <Eye className="w-5 h-5" />
+              <span className="absolute -bottom-1 -right-1 text-[9px] font-black px-1 rounded bg-black/80 text-indigo-300 border border-indigo-500/50">V</span>
             </button>
 
             {/* Flashlight Toggle */}
@@ -1028,9 +998,8 @@ export const HUD: React.FC<HUDProps> = ({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                onToggleFlashlight();
               }}
-              className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none ${
+              className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none cursor-pointer ${
                 isFlashlightOn
                   ? 'bg-amber-500/80 border-amber-300 text-white shadow-amber-500/30'
                   : 'bg-slate-900/80 border-slate-700 text-slate-300'
@@ -1049,9 +1018,8 @@ export const HUD: React.FC<HUDProps> = ({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                onToggleSprint(!isSprinting);
               }}
-              className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none ${
+              className={`w-11 h-11 rounded-2xl border backdrop-blur-md flex items-center justify-center shadow-lg transition active:scale-90 touch-none select-none cursor-pointer ${
                 isSprinting
                   ? 'bg-amber-600/90 border-amber-400 text-white animate-pulse'
                   : 'bg-slate-900/80 border-slate-700 text-slate-300'
@@ -1138,15 +1106,11 @@ export const HUD: React.FC<HUDProps> = ({
           ) : (
             <button
               id="btn-action-jump"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onJump();
-              }}
               onClick={(e) => {
                 e.stopPropagation();
                 onJump();
               }}
-              className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 active:from-blue-700 active:to-indigo-600 border-2 border-blue-300/60 text-white font-extrabold text-sm tracking-wider shadow-2xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition touch-none select-none"
+              className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 active:from-blue-700 active:to-indigo-600 border-2 border-blue-300/60 text-white font-extrabold text-sm tracking-wider shadow-2xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition touch-none select-none cursor-pointer"
             >
               <span className="text-xl">⬆️</span>
               <span>SALTAR</span>
